@@ -2588,6 +2588,24 @@ mxGraph.prototype.click = function(me)
 	{
 		if (cell != null)
 		{
+			if (this.isTransparentClickEvent(evt))
+			{
+				var active = false;
+				
+				var tmp = this.getCellAt(me.graphX, me.graphY, null, null, null, mxUtils.bind(this, function(state)
+				{
+					var selected = this.isCellSelected(state.cell);
+					active = active || selected;
+					
+					return !active || selected;
+				}));
+				
+				if (tmp != null)
+				{
+					cell = tmp;
+				}
+			}
+			
 			this.selectCellForEvent(cell, evt);
 		}
 		else
@@ -2915,8 +2933,9 @@ mxGraph.prototype.getPreferredPageSize = function(bounds, width, height)
  * ignored. Default is false.
  * ignoreHeight - Optional boolean that specifies if the height should be
  * ignored. Default is false.
+ * maxHeight - Optional maximum height.
  */
-mxGraph.prototype.fit = function(border, keepOrigin, margin, enabled, ignoreWidth, ignoreHeight)
+mxGraph.prototype.fit = function(border, keepOrigin, margin, enabled, ignoreWidth, ignoreHeight, maxHeight)
 {
 	if (this.container != null)
 	{
@@ -2930,7 +2949,7 @@ mxGraph.prototype.fit = function(border, keepOrigin, margin, enabled, ignoreWidt
 		// Adds spacing and border from css
 		var cssBorder = this.getBorderSizes();
 		var w1 = this.container.offsetWidth - cssBorder.x - cssBorder.width - 1;
-		var h1 = this.container.offsetHeight - cssBorder.y - cssBorder.height - 1;
+		var h1 = (maxHeight != null) ? maxHeight : this.container.offsetHeight - cssBorder.y - cssBorder.height - 1;
 		var bounds = this.view.getGraphBounds();
 		
 		if (bounds.width > 0 && bounds.height > 0)
@@ -4878,14 +4897,9 @@ mxGraph.prototype.splitEdge = function(edge, cells, newEdge, dx, dy)
 	this.model.beginUpdate();
 	try
 	{
-		
 		if (newEdge == null)
 		{
 			newEdge = this.cloneCells([edge])[0];
-
-			// Removes start arrow of original and end arrow of clone
-			this.setCellStyles(mxConstants.STYLE_ENDARROW, mxConstants.NONE, [newEdge]);
-			this.setCellStyles(mxConstants.STYLE_STARTARROW, mxConstants.NONE, [edge]);
 			
 			// Removes waypoints before/after new cell
 			var state = this.view.getState(edge);
@@ -6675,56 +6689,15 @@ mxGraph.prototype.getConnectionPoint = function(vertex, constraint)
 			}
 		}
 
-		if (constraint.point != null)
-		{
-			var sx = 1;
-			var sy = 1;
-			var dx = 0;
-			var dy = 0;
-			
-			// LATER: Add flipping support for image shapes
-			if (this.getModel().isVertex(vertex.cell))
-			{
-				var flipH = vertex.style[mxConstants.STYLE_FLIPH];
-				var flipV = vertex.style[mxConstants.STYLE_FLIPV];
-				
-				// Legacy support for stencilFlipH/V
-				if (vertex.shape != null && vertex.shape.stencil != null)
-				{
-					flipH = mxUtils.getValue(vertex.style, 'stencilFlipH', 0) == 1 || flipH;
-					flipV = mxUtils.getValue(vertex.style, 'stencilFlipV', 0) == 1 || flipV;
-				}
-				
-				if (direction == mxConstants.DIRECTION_NORTH || direction == mxConstants.DIRECTION_SOUTH)
-				{
-					var tmp = flipH;
-					flipH = flipV;
-					flipV = tmp;
-				}
-				
-				if (flipH)
-				{
-					sx = -1;
-					dx = -bounds.width;
-				}
-				
-				if (flipV)
-				{
-					sy = -1;
-					dy = -bounds.height ;
-				}
-			}
-			
-			point = new mxPoint(bounds.x + constraint.point.x * bounds.width * sx - dx,
-					bounds.y + constraint.point.y * bounds.height * sy - dy);
-		}
+		point = new mxPoint(bounds.x + constraint.point.x * bounds.width,
+				bounds.y + constraint.point.y * bounds.height);
 		
 		// Rotation for direction before projection on perimeter
 		var r2 = vertex.style[mxConstants.STYLE_ROTATION] || 0;
 		
 		if (constraint.perimeter)
 		{
-			if (r1 != 0 && point != null)
+			if (r1 != 0)
 			{
 				// Only 90 degrees steps possible here so no trig needed
 				var cos = 0;
@@ -6746,14 +6719,34 @@ mxGraph.prototype.getConnectionPoint = function(vertex, constraint)
 		        point = mxUtils.getRotatedPoint(point, cos, sin, cx);
 			}
 	
-			if (point != null && constraint.perimeter)
-			{
-				point = this.view.getPerimeterPoint(vertex, point, false);
-			}
+			point = this.view.getPerimeterPoint(vertex, point, false);
 		}
 		else
 		{
 			r2 += r1;
+			
+			if (this.getModel().isVertex(vertex.cell))
+			{
+				var flipH = vertex.style[mxConstants.STYLE_FLIPH] == 1;
+				var flipV = vertex.style[mxConstants.STYLE_FLIPV] == 1;
+				
+				// Legacy support for stencilFlipH/V
+				if (vertex.shape != null && vertex.shape.stencil != null)
+				{
+					flipH = (mxUtils.getValue(vertex.style, 'stencilFlipH', 0) == 1) || flipH;
+					flipV = (mxUtils.getValue(vertex.style, 'stencilFlipV', 0) == 1) || flipV;
+				}
+				
+				if (flipH)
+				{
+					point.x = 2 * bounds.getCenterX() - point.x;
+				}
+				
+				if (flipV)
+				{
+					point.y = 2 * bounds.getCenterY() - point.y;
+				}
+			}
 		}
 
 		// Generic rotation after projection on perimeter
@@ -6772,7 +6765,7 @@ mxGraph.prototype.getConnectionPoint = function(vertex, constraint)
 		point.x = Math.round(point.x);
 		point.y = Math.round(point.y);
 	}
-	
+
 	return point;
 };
 
@@ -8168,6 +8161,18 @@ mxGraph.prototype.isLoop = function(state)
 mxGraph.prototype.isCloneEvent = function(evt)
 {
 	return mxEvent.isControlDown(evt);
+};
+
+/**
+ * Function: isTransparentClickEvent
+ * 
+ * Hook for implementing click-through behaviour on selected cells. If this
+ * returns true the cell behind the selected cell will be selected. This
+ * implementation returns false;
+ */
+mxGraph.prototype.isTransparentClickEvent = function(evt)
+{
+	return false;
 };
 
 /**
@@ -10428,7 +10433,7 @@ mxGraph.prototype.setExtendParentsOnAdd = function(value)
 /**
  * Function: isExtendParentsOnMove
  * 
- * Returns <extendParentsOnAdd>.
+ * Returns <extendParentsOnMove>.
  */
 mxGraph.prototype.isExtendParentsOnMove = function()
 {
@@ -10438,7 +10443,7 @@ mxGraph.prototype.isExtendParentsOnMove = function()
 /**
  * Function: setExtendParentsOnMove
  * 
- * Sets <extendParentsOnAdd>.
+ * Sets <extendParentsOnMove>.
  * 
  * Parameters:
  * 
@@ -11583,12 +11588,15 @@ mxGraph.prototype.findTreeRoots = function(parent, isolate, invert)
  * edge - Optional <mxCell> that represents the incoming edge. This is
  * null for the first step of the traversal.
  * visited - Optional <mxDictionary> from cells to true for the visited cells.
+ * inverse - Optional boolean to traverse in inverse direction. Default is false.
+ * This is ignored if directed is false.
  */
-mxGraph.prototype.traverse = function(vertex, directed, func, edge, visited)
+mxGraph.prototype.traverse = function(vertex, directed, func, edge, visited, inverse)
 {
 	if (func != null && vertex != null)
 	{
 		directed = (directed != null) ? directed : true;
+		inverse = (inverse != null) ? inverse : false;
 		visited = visited || new mxDictionary();
 		
 		if (!visited.get(vertex))
@@ -11606,11 +11614,11 @@ mxGraph.prototype.traverse = function(vertex, directed, func, edge, visited)
 					{
 						var e = this.model.getEdgeAt(vertex, i);
 						var isSource = this.model.getTerminal(e, true) == vertex;
-												
-						if (!directed || isSource)
+						
+						if (!directed || (!inverse == isSource))
 						{
 							var next = this.model.getTerminal(e, !isSource);
-							this.traverse(next, directed, func, e, visited);
+							this.traverse(next, directed, func, e, visited, inverse);
 						}
 					}
 				}
@@ -12284,11 +12292,11 @@ mxGraph.prototype.isEventIgnored = function(evtName, me, sender)
 		this.mouseUpRedirect = null;
 		this.eventSource = null;
 	}
-	else if (this.eventSource != null && me.getSource() != this.eventSource)
+	else if (!mxClient.IS_GC && this.eventSource != null && me.getSource() != this.eventSource)
 	{
 		result = true;
 	}
-	else if (mxClient.IS_TOUCH && evtName == mxEvent.MOUSE_DOWN && !mouseEvent)
+	else if (mxClient.IS_TOUCH && evtName == mxEvent.MOUSE_DOWN && !mouseEvent && !mxEvent.isPenEvent(me.getEvent()))
 	{
 		this.eventSource = me.getSource();
 
@@ -12449,10 +12457,10 @@ mxGraph.prototype.fireMouseEvent = function(evtName, me, sender)
 	// two mouse ups, one of which without a cell but no mousedown for the second click which means we cannot
 	// detect which mouseup(s) are part of the first click, ie we do not know when the first click ends.
 	if ((!this.nativeDblClickEnabled && !mxEvent.isPopupTrigger(me.getEvent())) || (this.doubleTapEnabled &&
-		mxClient.IS_TOUCH && mxEvent.isTouchEvent(me.getEvent())))
+		mxClient.IS_TOUCH && (mxEvent.isTouchEvent(me.getEvent()) || mxEvent.isPenEvent(me.getEvent()))))
 	{
 		var currentTime = new Date().getTime();
-
+		
 		// NOTE: Second mouseDown for double click missing in quirks mode
 		if ((!mxClient.IS_QUIRKS && evtName == mxEvent.MOUSE_DOWN) || (mxClient.IS_QUIRKS && evtName == mxEvent.MOUSE_UP && !this.fireDoubleClick))
 		{
@@ -12518,7 +12526,8 @@ mxGraph.prototype.fireMouseEvent = function(evtName, me, sender)
 			this.isMouseDown = false;
 			
 			// Workaround for Chrome/Safari not firing native double click events for double touch on background
-			var valid = (cell != null) || (mxEvent.isTouchEvent(me.getEvent()) && (mxClient.IS_GC || mxClient.IS_SF));
+			var valid = (cell != null) || ((mxEvent.isTouchEvent(me.getEvent()) || mxEvent.isPenEvent(me.getEvent())) &&
+				(mxClient.IS_GC || mxClient.IS_SF));
 			
 			if (valid && Math.abs(this.lastTouchX - me.getX()) < this.doubleTapTolerance &&
 				Math.abs(this.lastTouchY - me.getY()) < this.doubleTapTolerance)
@@ -12594,8 +12603,8 @@ mxGraph.prototype.fireMouseEvent = function(evtName, me, sender)
 		}
 		
 		// Detects tapAndHold events using a timer
-		if (mxEvent.isTouchEvent(me.getEvent()) && evtName == mxEvent.MOUSE_DOWN &&
-			this.tapAndHoldEnabled && !this.tapAndHoldInProgress)
+		if ((mxEvent.isTouchEvent(me.getEvent()) || mxEvent.isPenEvent(me.getEvent())) &&
+			evtName == mxEvent.MOUSE_DOWN && this.tapAndHoldEnabled && !this.tapAndHoldInProgress)
 		{
 			this.tapAndHoldInProgress = true;
 			this.initialTouchX = me.getGraphX();

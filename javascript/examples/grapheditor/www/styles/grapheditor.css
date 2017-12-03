@@ -10,9 +10,6 @@
 .geMenubarContainer .geItem, .geToolbar .geButton, .geToolbar .geLabel, .geSidebarContainer .geTitle {
 	cursor:pointer !important;
 }
-.geContentEditable div, .geContentEditable table, .geContentEditable table td {
-	border: 1px dashed lightGray;
-}
 .geBackgroundPage {
   	-webkit-box-shadow:0px 0px 3px 0px #d9d9d9;
 	-moz-box-shadow:0px 0px 3px 0px #d9d9d9;
@@ -413,7 +410,7 @@ div.mxWindow .geButton {
 	box-sizing:border-box;
 	width:100%;
 	height:100%;
-	padding:11px 42px 11px 42px;
+	padding:12px 38px 11px 38px;
 	white-space:nowrap;
 }
 .geHsplit {

@@ -18,6 +18,16 @@ Format.prototype.labelIndex = 0;
 Format.prototype.currentIndex = 0;
 
 /**
+ * Returns information about the current selection.
+ */
+Format.prototype.showCloseButton = true;
+
+/**
+ * Background color for inactive tabs.
+ */
+Format.prototype.inactiveTabBackgroundColor = '#d7d7d7';
+
+/**
  * Adds the label menu items to the given menu and parent.
  */
 Format.prototype.init = function()
@@ -88,7 +98,7 @@ Format.prototype.initSelectionState = function()
 {
 	return {vertices: [], edges: [], x: null, y: null, width: null, height: null, style: {},
 		containsImage: false, containsLabel: false, fill: true, glass: true, rounded: true,
-		comic: true, autoSize: false, image: true, shadow: true};
+		comic: true, autoSize: false, image: true, shadow: true, lineJumps: true};
 };
 
 /**
@@ -174,6 +184,7 @@ Format.prototype.updateSelectionStateForCell = function(result, cell, cells)
 		result.autoSize = result.autoSize || this.isAutoSizeState(state);
 		result.glass = result.glass && this.isGlassState(state);
 		result.rounded = result.rounded && this.isRoundedState(state);
+		result.lineJumps = result.lineJumps && this.isLineJumpState(state);
 		result.comic = result.comic && this.isComicState(state);
 		result.image = result.image && this.isImageState(state);
 		result.shadow = result.shadow && this.isShadowState(state);
@@ -208,6 +219,7 @@ Format.prototype.isFillState = function(state)
 {
 	return state.view.graph.model.isVertex(state.cell) ||
 		mxUtils.getValue(state.style, mxConstants.STYLE_SHAPE, null) == 'arrow' ||
+		mxUtils.getValue(state.style, mxConstants.STYLE_SHAPE, null) == 'filledEdge' ||
 		mxUtils.getValue(state.style, mxConstants.STYLE_SHAPE, null) == 'flexArrow';
 };
 
@@ -234,8 +246,18 @@ Format.prototype.isRoundedState = function(state)
 			shape == 'parallelogram' || shape == 'swimlane' || shape == 'triangle' || shape == 'trapezoid' ||
 			shape == 'ext' || shape == 'step' || shape == 'tee' || shape == 'process' || shape == 'link' ||
 			shape == 'rhombus' || shape == 'offPageConnector' || shape == 'loopLimit' || shape == 'hexagon' ||
-			shape == 'manualInput' || shape == 'curlyBracket' || shape == 'singleArrow' ||
+			shape == 'manualInput' || shape == 'curlyBracket' || shape == 'singleArrow' || shape == 'callout' ||
 			shape == 'doubleArrow' || shape == 'flexArrow' || shape == 'card' || shape == 'umlLifeline');
+};
+
+/**
+ * Returns information about the current selection.
+ */
+Format.prototype.isLineJumpState = function(state)
+{
+	var shape = mxUtils.getValue(state.style, mxConstants.STYLE_SHAPE, null);
+	
+	return shape == 'connector' || shape == 'filledEdge';
 };
 
 /**
@@ -248,8 +270,8 @@ Format.prototype.isComicState = function(state)
 	return mxUtils.indexOf(['label', 'rectangle', 'internalStorage', 'corner', 'parallelogram', 'note', 'collate',
 	                        'swimlane', 'triangle', 'trapezoid', 'ext', 'step', 'tee', 'process', 'link', 'rhombus',
 	                        'offPageConnector', 'loopLimit', 'hexagon', 'manualInput', 'singleArrow', 'doubleArrow',
-	                        'flexArrow', 'card', 'umlLifeline', 'connector', 'folder', 'component', 'sortShape',
-	                        'cross', 'umlFrame', 'cube', 'isoCube', 'isoRectangle'], shape) >= 0;
+	                        'flexArrow', 'filledEdge', 'card', 'umlLifeline', 'connector', 'folder', 'component', 'sortShape',
+	                        'cross', 'umlFrame', 'cube', 'isoCube', 'isoRectangle', 'partialRectangle'], shape) >= 0;
 };
 
 /**
@@ -339,26 +361,29 @@ Format.prototype.refresh = function()
 		// Adds button to hide the format panel since
 		// people don't seem to find the toolbar button
 		// and the menu item in the format menu
-		var img = document.createElement('img');
-		img.setAttribute('border', '0');
-		img.setAttribute('src', Dialog.prototype.closeImage);
-		img.setAttribute('title', mxResources.get('hide'));
-		img.style.position = 'absolute';
-		img.style.display = 'block';
-		img.style.right = '0px';
-		img.style.top = '8px';
-		img.style.cursor = 'pointer';
-		img.style.marginTop = '1px';
-		img.style.marginRight = '17px';
-		img.style.border = '1px solid transparent';
-		img.style.padding = '1px';
-		img.style.opacity = 0.5;
-		label.appendChild(img)
-		
-		mxEvent.addListener(img, 'click', function()
+		if (this.showCloseButton)
 		{
-			ui.actions.get('formatPanel').funct();
-		});
+			var img = document.createElement('img');
+			img.setAttribute('border', '0');
+			img.setAttribute('src', Dialog.prototype.closeImage);
+			img.setAttribute('title', mxResources.get('hide'));
+			img.style.position = 'absolute';
+			img.style.display = 'block';
+			img.style.right = '0px';
+			img.style.top = '8px';
+			img.style.cursor = 'pointer';
+			img.style.marginTop = '1px';
+			img.style.marginRight = '17px';
+			img.style.border = '1px solid transparent';
+			img.style.padding = '1px';
+			img.style.opacity = 0.5;
+			label.appendChild(img)
+			
+			mxEvent.addListener(img, 'click', function()
+			{
+				ui.actions.get('formatPanel').funct();
+			});
+		}
 		
 		div.appendChild(label);
 		this.panels.push(new DiagramFormatPanel(this, ui, div));
@@ -392,7 +417,7 @@ Format.prototype.refresh = function()
 					
 					if (currentLabel != null)
 					{
-						currentLabel.style.backgroundColor = '#d7d7d7';
+						currentLabel.style.backgroundColor = this.inactiveTabBackgroundColor;
 						currentLabel.style.borderBottomWidth = '1px';
 					}
 	
@@ -424,7 +449,7 @@ Format.prototype.refresh = function()
 		
 		var idx = 0;
 
-		label.style.backgroundColor = '#d7d7d7';
+		label.style.backgroundColor = this.inactiveTabBackgroundColor;
 		label.style.borderLeftWidth = '1px';
 		label.style.width = (containsLabel) ? '50%' : '33.3%';
 		label.style.width = (containsLabel) ? '50%' : '33.3%';
@@ -432,8 +457,8 @@ Format.prototype.refresh = function()
 		var label3 = label2.cloneNode(false);
 
 		// Workaround for ignored background in IE
-		label2.style.backgroundColor = '#d7d7d7';
-		label3.style.backgroundColor = '#d7d7d7';
+		label2.style.backgroundColor = this.inactiveTabBackgroundColor;
+		label3.style.backgroundColor = this.inactiveTabBackgroundColor;
 		
 		// Style
 		if (containsLabel)
@@ -998,7 +1023,7 @@ BaseFormatPanel.prototype.createColorOption = function(label, getColorFn, setCol
 				((color != null && color != mxConstants.NONE) ? color : defaultColor) + ';"></div>';
 			
 			// Fine-tuning in Firefox, quirks mode and IE8 standards
-			if (mxClient.IS_MT || mxClient.IS_QUIRKS || document.documentMode == 8)
+			if (mxClient.IS_QUIRKS || document.documentMode == 8)
 			{
 				btn.firstChild.style.margin = '0px';
 			}
@@ -1477,6 +1502,7 @@ ArrangePanel.prototype.addGroupOps = function(div)
 	var cell = graph.getSelectionCell();
 	var ss = this.format.getSelectionState();
 	var count = 0;
+	var btn = null;
 	
 	div.style.paddingTop = '8px';
 	div.style.paddingBottom = '6px';
@@ -2087,7 +2113,7 @@ ArrangePanel.prototype.addEdgeGeometry = function(container)
 		var value = parseInt(width.value);
 		value = Math.min(999, Math.max(1, (isNaN(value)) ? 1 : value));
 		
-		if (value != mxUtils.getValue(rect.style, 'width', mxCellRenderer.prototype.defaultShapes['flexArrow'].prototype.defaultWidth))
+		if (value != mxUtils.getValue(rect.style, 'width', mxCellRenderer.defaultShapes['flexArrow'].prototype.defaultWidth))
 		{
 			graph.setCellStyles('width', value, graph.getSelectionCells());
 			ui.fireEvent(new mxEventObject('styleChanged', 'keys', ['width'],
@@ -2114,7 +2140,7 @@ ArrangePanel.prototype.addEdgeGeometry = function(container)
 			if (force || document.activeElement != width)
 			{
 				var value = mxUtils.getValue(rect.style, 'width',
-					mxCellRenderer.prototype.defaultShapes['flexArrow'].prototype.defaultWidth);
+					mxCellRenderer.defaultShapes['flexArrow'].prototype.defaultWidth);
 				width.value = value + ' pt';
 			}
 		}
@@ -2195,6 +2221,12 @@ TextFormatPanel.prototype.addFont = function(container)
 		var arrow = cssMenu.getElementsByTagName('div')[0];
 		arrow.style.cssFloat = 'right';
 		container.appendChild(cssPanel);
+		
+		// Workaround for offset in FF
+		if (mxClient.IS_FF)
+		{
+			cssMenu.getElementsByTagName('div')[0].style.marginTop = '-18px';
+		}
 	}
 	
 	container.appendChild(stylePanel);
@@ -2308,11 +2340,13 @@ TextFormatPanel.prototype.addFont = function(container)
 				document.execCommand('justifyfull', false, null);
 			}, stylePanel3);
 		this.styleButtons([full,
-       		sub = this.editorUi.toolbar.addButton('geSprite-subscript', mxResources.get('subscript') + ' (Ctrl+,)',
+       		sub = this.editorUi.toolbar.addButton('geSprite-subscript',
+       			mxResources.get('subscript') + ' (' + Editor.ctrlKey + '+,)',
 			function()
 			{
 				document.execCommand('subscript', false, null);
-			}, stylePanel3), sup = this.editorUi.toolbar.addButton('geSprite-superscript', mxResources.get('superscript') + ' (Ctrl+.)',
+			}, stylePanel3), sup = this.editorUi.toolbar.addButton('geSprite-superscript',
+				mxResources.get('superscript') + ' (' + Editor.ctrlKey + '+.)',
 			function()
 			{
 				document.execCommand('superscript', false, null);
@@ -2684,7 +2718,7 @@ TextFormatPanel.prototype.addFont = function(container)
 		container.appendChild(this.createRelativeOption(mxResources.get('lineheight'), null, null, function(input)
 		{
 			var value = (input.value == '') ? 120 : parseInt(input.value);
-			value = Math.max(120, (isNaN(value)) ? 120 : value);
+			value = Math.max(0, (isNaN(value)) ? 120 : value);
 
 			if (selState != null)
 			{
@@ -2702,9 +2736,9 @@ TextFormatPanel.prototype.addFont = function(container)
 			
 			if (node != null && node == graph.cellEditor.textarea && graph.cellEditor.textarea.firstChild != null)
 			{
-				if (graph.cellEditor.textarea.firstChild.nodeName != 'FONT')
+				if (graph.cellEditor.textarea.firstChild.nodeName != 'P')
 				{
-					graph.cellEditor.textarea.innerHTML = '<font>' + graph.cellEditor.textarea.innerHTML + '</font>';
+					graph.cellEditor.textarea.innerHTML = '<p>' + graph.cellEditor.textarea.innerHTML + '</p>';
 				}
 				
 				node = graph.cellEditor.textarea.firstChild;
@@ -3156,6 +3190,13 @@ TextFormatPanel.prototype.addFont = function(container)
 					
 					if (node != null)
 					{
+						// Workaround for commonAncestor on range in IE11 returning parent of common ancestor
+						if (node == graph.cellEditor.textarea && graph.cellEditor.textarea.children.length == 1 &&
+							graph.cellEditor.textarea.firstChild.nodeType == mxConstants.NODETYPE_ELEMENT)
+						{
+							node = graph.cellEditor.textarea.firstChild;
+						}
+						
 						var css = mxUtils.getCurrentStyle(node);
 						
 						if (css != null)
@@ -3262,6 +3303,16 @@ TextFormatPanel.prototype.addFont = function(container)
 								{
 									ff = ff.substring(0, ff.length - 1);
 								}
+
+								if (ff.charAt(0) == '"')
+								{
+									ff = ff.substring(1);
+								}
+								
+								if (ff.charAt(ff.length - 1) == '"')
+								{
+									ff = ff.substring(0, ff.length - 1);
+								}
 								
 								fontMenu.firstChild.nodeValue = ff;
 							}
@@ -3314,6 +3365,7 @@ StyleFormatPanel.prototype.init = function()
 	}
 
 	this.container.appendChild(this.addStroke(this.createPanel()));
+	this.container.appendChild(this.addLineJumps(this.createPanel()));
 	var opacityPanel = this.createRelativeOption(mxResources.get('opacity'), mxConstants.STYLE_OPACITY, 41);
 	opacityPanel.style.paddingTop = '8px';
 	opacityPanel.style.paddingBottom = '8px';
@@ -3452,7 +3504,7 @@ StyleFormatPanel.prototype.addFill = function(container)
 		
 		var fillColor = mxUtils.getValue(ss.style, mxConstants.STYLE_FILLCOLOR, null);
 
-		if (!ss.fill || ss.containsImage || fillColor == null || fillColor == mxConstants.NONE)
+		if (!ss.fill || ss.containsImage || fillColor == null || fillColor == mxConstants.NONE || ss.style.shape == 'filledEdge')
 		{
 			gradientPanel.style.display = 'none';
 		}
@@ -3977,7 +4029,7 @@ StyleFormatPanel.prototype.addStroke = function(container)
 			altInput.value = (isNaN(tmp)) ? '' : tmp + ' pt';
 		}
 		
-		styleSelect.style.visibility = (ss.style.shape == 'connector') ? '' : 'hidden';
+		styleSelect.style.visibility = (ss.style.shape == 'connector' || ss.style.shape == 'filledEdge') ? '' : 'hidden';
 		
 		if (mxUtils.getValue(ss.style, mxConstants.STYLE_CURVED, null) == '1')
 		{
@@ -4176,6 +4228,107 @@ StyleFormatPanel.prototype.addStroke = function(container)
 };
 
 /**
+ * Adds UI for configuring line jumps.
+ */
+StyleFormatPanel.prototype.addLineJumps = function(container)
+{
+	var ss = this.format.getSelectionState();
+	
+	if (Graph.lineJumpsEnabled && ss.edges.length > 0 &&
+		ss.vertices.length == 0 && ss.lineJumps)
+	{
+		container.style.padding = '8px 0px 24px 18px';
+		
+		var ui = this.editorUi;
+		var editor = ui.editor;
+		var graph = editor.graph;
+		
+		var span = document.createElement('div');
+		span.style.position = 'absolute';
+		span.style.fontWeight = 'bold';
+		span.style.width = '80px';
+		
+		mxUtils.write(span, mxResources.get('lineJumps'));
+		container.appendChild(span);
+		
+		var styleSelect = document.createElement('select');
+		styleSelect.style.position = 'absolute';
+		styleSelect.style.marginTop = '-2px';
+		styleSelect.style.right = '76px';
+		styleSelect.style.width = '62px';
+
+		var styles = ['none', 'arc', 'gap', 'sharp'];
+
+		for (var i = 0; i < styles.length; i++)
+		{
+			var styleOption = document.createElement('option');
+			styleOption.setAttribute('value', styles[i]);
+			mxUtils.write(styleOption, mxResources.get(styles[i]));
+			styleSelect.appendChild(styleOption);
+		}
+		
+		mxEvent.addListener(styleSelect, 'change', function(evt)
+		{
+			graph.getModel().beginUpdate();
+			try
+			{
+				graph.setCellStyles('jumpStyle', styleSelect.value, graph.getSelectionCells());
+				ui.fireEvent(new mxEventObject('styleChanged', 'keys', ['jumpStyle'],
+					'values', [styleSelect.value], 'cells', graph.getSelectionCells()));
+			}
+			finally
+			{
+				graph.getModel().endUpdate();
+			}
+			
+			mxEvent.consume(evt);
+		});
+		
+		// Stops events from bubbling to color option event handler
+		mxEvent.addListener(styleSelect, 'click', function(evt)
+		{
+			mxEvent.consume(evt);
+		});
+		
+		container.appendChild(styleSelect);
+		
+		var jumpSizeUpdate;
+		
+		var jumpSize = this.addUnitInput(container, 'pt', 22, 33, function()
+		{
+			jumpSizeUpdate.apply(this, arguments);
+		});
+		
+		jumpSizeUpdate = this.installInputHandler(jumpSize, 'jumpSize',
+			Graph.defaultJumpSize, 0, 999, ' pt');
+		
+		var listener = mxUtils.bind(this, function(sender, evt, force)
+		{
+			ss = this.format.getSelectionState();
+			styleSelect.value = mxUtils.getValue(ss.style, 'jumpStyle', 'none');
+
+			if (force || document.activeElement != jumpSize)
+			{
+				var tmp = parseInt(mxUtils.getValue(ss.style, 'jumpSize', Graph.defaultJumpSize));
+				jumpSize.value = (isNaN(tmp)) ? '' : tmp  + ' pt';
+			}
+		});
+
+		this.addKeyHandler(jumpSize, listener);
+
+		graph.getModel().addListener(mxEvent.CHANGE, listener);
+		this.listeners.push({destroy: function() { graph.getModel().removeListener(listener); }});
+		listener();
+	}
+	else
+	{
+		container.style.display = 'none';
+	}
+	
+	return container;
+};
+
+/**
  * Adds the label menu items to the given menu and parent.
  */
 StyleFormatPanel.prototype.addEffects = function(div)
@@ -4304,6 +4457,11 @@ DiagramFormatPanel = function(format, editorUi, container)
 mxUtils.extend(DiagramFormatPanel, BaseFormatPanel);
 
 /**
+ * Switch to disable page view.
+ */
+DiagramFormatPanel.showPageView = true;
+
+/**
  * Specifies if the background image option should be shown. Default is true.
  */
 DiagramFormatPanel.prototype.showBackgroundImageOption = true;
@@ -4343,53 +4501,32 @@ DiagramFormatPanel.prototype.addView = function(div)
 
 	if (graph.isEnabled())
 	{
-		// Guides
-		div.appendChild(this.createOption(mxResources.get('guides'), function()
-		{
-			return graph.graphHandler.guidesEnabled;
-		}, function(checked)
-		{
-			ui.actions.get('guides').funct();
-		},
-		{
-			install: function(apply)
-			{
-				this.listener = function()
-				{
-					apply(graph.graphHandler.guidesEnabled);
-				};
-				
-				ui.addListener('guidesEnabledChanged', this.listener);
-			},
-			destroy: function()
-			{
-				ui.removeListener(this.listener);
-			}
-		}));
-		
 		// Page View
-		div.appendChild(this.createOption(mxResources.get('pageView'), function()
+		if (DiagramFormatPanel.showPageView)
 		{
-			return graph.pageVisible;
-		}, function(checked)
-		{
-			ui.actions.get('pageView').funct();
-		},
-		{
-			install: function(apply)
+			div.appendChild(this.createOption(mxResources.get('pageView'), function()
 			{
-				this.listener = function()
-				{
-					apply(graph.pageVisible);
-				};
-				
-				ui.addListener('pageViewChanged', this.listener);
+				return graph.pageVisible;
+			}, function(checked)
+			{
+				ui.actions.get('pageView').funct();
 			},
-			destroy: function()
 			{
-				ui.removeListener(this.listener);
-			}
-		}));
+				install: function(apply)
+				{
+					this.listener = function()
+					{
+						apply(graph.pageVisible);
+					};
+					
+					ui.addListener('pageViewChanged', this.listener);
+				},
+				destroy: function()
+				{
+					ui.removeListener(this.listener);
+				}
+			}));
+		}
 		
 		// Background
 		var bg = this.createColorOption(mxResources.get('background'), function()
@@ -4397,7 +4534,10 @@ DiagramFormatPanel.prototype.addView = function(div)
 			return graph.background;
 		}, function(color)
 		{
-			ui.setBackgroundColor(color);
+			var change = new ChangePageSetup(ui, color);
+			change.ignoreImage = true;
+			
+			graph.model.execute(change);
 		}, '#ffffff',
 		{
 			install: function(apply)
@@ -4494,6 +4634,30 @@ DiagramFormatPanel.prototype.addOptions = function(div)
 				};
 				
 				ui.addListener('connectionPointsChanged', this.listener);
+			},
+			destroy: function()
+			{
+				ui.removeListener(this.listener);
+			}
+		}));
+
+		// Guides
+		div.appendChild(this.createOption(mxResources.get('guides'), function()
+		{
+			return graph.graphHandler.guidesEnabled;
+		}, function(checked)
+		{
+			ui.actions.get('guides').funct();
+		},
+		{
+			install: function(apply)
+			{
+				this.listener = function()
+				{
+					apply(graph.graphHandler.guidesEnabled);
+				};
+				
+				ui.addListener('guidesEnabledChanged', this.listener);
 			},
 			destroy: function()
 			{
@@ -4677,15 +4841,19 @@ DiagramFormatPanel.prototype.addPaperSize = function(div)
 
 	var accessor = PageSetupDialog.addPageFormatPanel(div, 'formatpanel', graph.pageFormat, function(pageFormat)
 	{
-		if (graph.pageFormat == null || graph.pageFormat.width != pageFormat.width || graph.pageFormat.height != pageFormat.height)
+		if (graph.pageFormat == null || graph.pageFormat.width != pageFormat.width ||
+			graph.pageFormat.height != pageFormat.height)
 		{
-			ui.setPageFormat(pageFormat);
+			var change = new ChangePageSetup(ui, null, null, pageFormat);
+			change.ignoreColor = true;
+			change.ignoreImage = true;
+			
+			graph.model.execute(change);
 		}
 	});
 	
 	this.addKeyHandler(accessor.widthInput, function()
 	{
-		console.log('here', graph.pageFormat);
 		accessor.set(graph.pageFormat);
 	});
 -	this.addKeyHandler(accessor.heightInput, function()

@@ -6,6 +6,11 @@
 if (typeof html4 !== 'undefined')
 {
 	html4.ATTRIBS["a::target"] = 0;
+	html4.ATTRIBS["source::src"] = 0;
+	html4.ATTRIBS["video::src"] = 0;
+	// Would be nice for tooltips but probably a security risk...
+	//html4.ATTRIBS["video::autoplay"] = 0;
+	//html4.ATTRIBS["video::autobuffer"] = 0;
 }
 
 /**
@@ -69,7 +74,9 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 	mxGraph.call(this, container, model, renderHint, stylesheet);
 	
 	this.themes = themes || this.defaultThemes;
-	
+	this.currentEdgeStyle = mxUtils.clone(this.defaultEdgeStyle);
+	this.currentVertexStyle = mxUtils.clone(this.defaultVertexStyle);
+
 	// Sets the base domain URL and domain path URL for relative links.
 	var b = this.baseUrl;
 	var p = b.indexOf('//');
@@ -164,6 +171,17 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 			mouseDown: function(sender, me) {},
 		    mouseMove: mxUtils.bind(this, function(sender, me)
 		    {
+		    	// Checks if any other handler is active
+		    	var handlerMap = this.selectionCellsHandler.handlers.map;
+		    	
+		    	for (var key in handlerMap)
+		    	{
+		    		if (handlerMap[key].index != null)
+		    		{
+		    			return;
+		    		}
+		    	}
+		    	
 		    	if (this.isEnabled() && !this.panningHandler.isActive() && !mxEvent.isControlDown(me.getEvent()) &&
 		    		!mxEvent.isShiftDown(me.getEvent()) && !mxEvent.isAltDown(me.getEvent()))
 		    	{
@@ -173,8 +191,8 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 			    	{
 			    		var state = start.state;
 			    		
-			    		if (Math.abs(start.point.x - me.getGraphX()) > tol * this.view.scale ||
-			    			Math.abs(start.point.y - me.getGraphY()) > tol * this.view.scale)
+			    		if (Math.abs(start.point.x - me.getGraphX()) > tol ||
+			    			Math.abs(start.point.y - me.getGraphY()) > tol)
 			    		{
 			    			// Lazy selection for edges inside groups
 			    			if (!this.isCellSelected(state.cell))
@@ -411,7 +429,7 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 		{
 			this.loadStylesheet();
 		}
-		
+
 		// Adds page centers to the guides for moving cells
 		var graphHandlerGetGuideStates = this.graphHandler.getGuideStates;
 		this.graphHandler.getGuideStates = function()
@@ -508,12 +526,12 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 	    	
 			if (mxUtils.getValue(style, 'part', false))
 			{
-		        var parent = this.graph.model.getParent(source);
+				var parent = this.graph.model.getParent(source);
 
-		        if (this.graph.model.isVertex(parent))
-		        {
-		        	source = parent;
-		        }
+				if (this.graph.model.isVertex(parent))
+				{
+					source = parent;
+				}
 			}
 			
 			return mxConnectionHandler.prototype.createTargetVertex.apply(this, arguments);
@@ -523,7 +541,7 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 	    
 	    this.getRubberband = function()
 	    {
-	    	return rubberband;
+	    		return rubberband;
 	    };
 	    
 	    // Timer-based activation of outline connect in connection handler
@@ -534,18 +552,18 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 	    
 	    this.connectionHandler.mouseMove = function()
 	    {
-	    	var prev = this.currentState;
-	    	connectionHandlerMouseMove.apply(this, arguments);
-	    	
-	    	if (prev != this.currentState)
-	    	{
-	    		startTime = new Date().getTime();
-	    		timeOnTarget = 0;
-	    	}
-	    	else
-	    	{
-		    	timeOnTarget = new Date().getTime() - startTime;
-	    	}
+		    	var prev = this.currentState;
+		    	connectionHandlerMouseMove.apply(this, arguments);
+		    	
+		    	if (prev != this.currentState)
+		    	{
+		    		startTime = new Date().getTime();
+		    		timeOnTarget = 0;
+		    	}
+		    	else
+		    	{
+			    	timeOnTarget = new Date().getTime() - startTime;
+		    	}
 	    };
 
 	    // Activates outline connect after 1500ms with touch event or if alt is pressed inside the shape
@@ -553,16 +571,16 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 	    
 	    this.connectionHandler.isOutlineConnectEvent = function(me)
 	    {
-	    	return (this.currentState != null && me.getState() == this.currentState && timeOnTarget > 2000) ||
-	    		((this.currentState == null || mxUtils.getValue(this.currentState.style, 'outlineConnect', '1') != '0') &&
-	    		connectionHandleIsOutlineConnectEvent.apply(this, arguments));
+		    	return (this.currentState != null && me.getState() == this.currentState && timeOnTarget > 2000) ||
+		    		((this.currentState == null || mxUtils.getValue(this.currentState.style, 'outlineConnect', '1') != '0') &&
+		    		connectionHandleIsOutlineConnectEvent.apply(this, arguments));
 	    };
 	    
 	    // Adds shift+click to toggle selection state
 	    var isToggleEvent = this.isToggleEvent;
 	    this.isToggleEvent = function(evt)
 	    {
-	    	return isToggleEvent.apply(this, arguments) || mxEvent.isShiftDown(evt);
+	    		return isToggleEvent.apply(this, arguments) || mxEvent.isShiftDown(evt);
 	    };
 	    
 	    // Workaround for Firefox where first mouse down is received
@@ -571,9 +589,9 @@ Graph = function(container, model, renderHint, stylesheet, themes)
 	    var isForceRubberBandEvent = rubberband.isForceRubberbandEvent;
 	    rubberband.isForceRubberbandEvent = function(me)
 	    {
-	    	return isForceRubberBandEvent.apply(this, arguments) ||
-	    		(mxUtils.hasScrollbars(this.graph.container) && mxClient.IS_FF &&
-	    		mxClient.IS_WIN && me.getState() == null && mxEvent.isTouchEvent(me.getEvent()));
+		    	return isForceRubberBandEvent.apply(this, arguments) ||
+		    		(mxUtils.hasScrollbars(this.graph.container) && mxClient.IS_FF &&
+		    		mxClient.IS_WIN && me.getState() == null && mxEvent.isTouchEvent(me.getEvent()));
 	    };
 	    
 	    // Shows hand cursor while panning
@@ -856,7 +874,30 @@ Graph.touchStyle = mxClient.IS_TOUCH || (mxClient.IS_FF && mxClient.IS_WIN) || n
 Graph.fileSupport = window.File != null && window.FileReader != null && window.FileList != null &&
 	(window.urlParams == null || urlParams['filesupport'] != '0');
 
-// Graph inherits from mxGraph
+/**
+ * Default size for line jumps.
+ */
+Graph.lineJumpsEnabled = true;
+
+/**
+ * Default size for line jumps.
+ */
+Graph.defaultJumpSize = 6;
+
+/**
+ * Helper function (requires atob).
+ */
+Graph.createSvgImage = function(w, h, data)
+{
+    return new mxImage('data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(
+        '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + w + 'px" height="' + h + 'px" ' +
+        'version="1.1">' + data + '</svg>'))), w, h)
+};
+
+/**
+ * Graph inherits from mxGraph.
+ */
 mxUtils.extend(Graph, mxGraph);
 
 /**
@@ -954,7 +995,7 @@ Graph.prototype.defaultThemes = {};
 /**
  * Base URL for relative links.
  */
-Graph.prototype.baseUrl = (window != window.top) ? document.referrer : document.location.toString();
+Graph.prototype.baseUrl = ((window != window.top) ? document.referrer : document.location.toString()).split('#')[0];
 
 /**
  * Installs child layout styles.
@@ -968,44 +1009,133 @@ Graph.prototype.init = function(container)
 	{
 		mxCellRenderer.prototype.initializeLabel.apply(this, arguments);
 		
-		mxEvent.addListener(shape.node, 'click', mxUtils.bind(this, function(evt)
+		// Checks tolerance for clicks on links
+		var tol = state.view.graph.tolerance;
+		var handleClick = true;
+		var first = null;
+		
+		var down = mxUtils.bind(this, function(evt)
 		{
-			var elt = mxEvent.getSource(evt)
-			
-			while (elt != null && elt != shape.node)
+			handleClick = true;
+			first = new mxPoint(mxEvent.getClientX(evt), mxEvent.getClientY(evt));
+		});
+		
+		var move = mxUtils.bind(this, function(evt)
+		{
+			handleClick = handleClick && first != null &&
+				Math.abs(first.x - mxEvent.getClientX(evt)) < tol &&
+				Math.abs(first.y - mxEvent.getClientY(evt)) < tol;
+		});
+		
+		var up = mxUtils.bind(this, function(evt)
+		{
+			if (handleClick)
 			{
-				if (elt.nodeName == 'A')
-				{
-					var href = elt.getAttribute('href');
-					
-					if (href != null)
-					{
-						var target = state.view.graph.isBlankLink(href) ?
-							state.view.graph.linkTarget : '_top';
-						href = state.view.graph.getAbsoluteUrl(href);
-
-						// Workaround for blocking in same iframe
-						if (target == '_self' && window != window.top)
-						{
-							window.location.href = href;
-						}
-						else
-						{
-							window.open(href, target);
-						}
-						
-						mxEvent.consume(evt);
-					}
-	
-					break;
-				}
+				var elt = mxEvent.getSource(evt)
 				
-				elt = elt.parentNode;
+				while (elt != null && elt != shape.node)
+				{
+					if (elt.nodeName.toLowerCase() == 'a')
+					{
+						state.view.graph.labelLinkClicked(state, elt, evt);
+						break;
+					}
+					
+					elt = elt.parentNode;
+				}
 			}
-		}));
+		});
+		
+		mxEvent.addGestureListeners(shape.node, down, move, up);
+		mxEvent.addListener(shape.node, 'click', function(evt)
+		{
+			mxEvent.consume(evt);
+		});
 	};
 	
 	this.initLayoutManager();
+};
+
+/**
+ * Adds support for page links.
+ */
+Graph.prototype.isPageLink = function(href)
+{
+	return false;
+};
+
+/**
+ * Installs automatic layout via styles
+ */
+Graph.prototype.labelLinkClicked = function(state, elt, evt)
+{
+	var href = elt.getAttribute('href');
+	
+	if (href != null && !this.isPageLink(href))
+	{
+		if (!this.isEnabled())
+		{
+			var target = state.view.graph.isBlankLink(href) ?
+				state.view.graph.linkTarget : '_top';
+			href = state.view.graph.getAbsoluteUrl(href);
+	
+			// Workaround for blocking in same iframe
+			if (target == '_self' && window != window.top)
+			{
+				window.location.href = href;
+			}
+			else
+			{
+				// Avoids page reload for anchors (workaround for IE but used everywhere)
+				if (href.substring(0, this.baseUrl.length) == this.baseUrl &&
+					href.charAt(this.baseUrl.length) == '#' &&
+					target == '_top' && window == window.top)
+				{
+					window.location.hash = href.split('#')[1];
+				}
+				else if ((mxEvent.isLeftMouseButton(evt) &&
+					!mxEvent.isPopupTrigger(evt)) ||
+			    		mxEvent.isTouchEvent(evt))
+				{
+					window.open(href, target);
+				}
+			}
+		}
+		
+		mxEvent.consume(evt);
+	}
+};
+
+/**
+ * Returns true if the fiven href references an external protocol that
+ * should never open in a new window. Default returns true for mailto.
+ */
+Graph.prototype.isExternalProtocol = function(href)
+{
+	return href.substring(0, 7) === 'mailto:';
+};
+
+/**
+ * Hook for links to open in same window. Default returns true for anchors,
+ * links to same domain or if target == 'self' in the config.
+ */
+Graph.prototype.isBlankLink = function(href)
+{
+	return !this.isExternalProtocol(href) &&
+		(this.linkPolicy === 'blank' ||
+		(this.linkPolicy !== 'self' &&
+		!this.isRelativeUrl(href) &&
+		href.substring(0, this.domainUrl.length) !== this.domainUrl));
+};
+
+/**
+ * 
+ */
+Graph.prototype.isRelativeUrl = function(url)
+{
+	return url != null && !this.absoluteUrlPattern.test(url) &&
+		url.substring(0, 5) !== 'data:' &&
+		!this.isExternalProtocol(url);
 };
 
 /**
@@ -1023,10 +1153,12 @@ Graph.prototype.initLayoutManager = function()
 		if (style['childLayout'] == 'stackLayout')
 		{
 			var stackLayout = new mxStackLayout(this.graph, true);
-			stackLayout.resizeParentMax = true;
+			stackLayout.resizeParentMax = mxUtils.getValue(style, 'resizeParentMax', '1') == '1';
 			stackLayout.horizontal = mxUtils.getValue(style, 'horizontalStack', '1') == '1';
 			stackLayout.resizeParent = mxUtils.getValue(style, 'resizeParent', '1') == '1';
 			stackLayout.resizeLast = mxUtils.getValue(style, 'resizeLast', '0') == '1';
+			stackLayout.spacing = style['stackSpacing'] || stackLayout.spacing;
+			stackLayout.border = style['stackBorder'] || stackLayout.border;
 			stackLayout.marginLeft = style['marginLeft'] || 0;
 			stackLayout.marginRight = style['marginRight'] || 0;
 			stackLayout.marginTop = style['marginTop'] || 0;
@@ -1116,7 +1248,8 @@ Graph.prototype.getPageLayout = function()
 Graph.prototype.sanitizeHtml = function(value, editing)
 {
 	// Uses https://code.google.com/p/google-caja/wiki/JsHtmlSanitizer
-	// NOTE: Original minimized sanitizer was modified to support data URIs for images
+	// NOTE: Original minimized sanitizer was modified to support
+	// data URIs for images, mailto and special data:-links.
 	// LATER: Add MathML to whitelisted tags
 	function urlX(link)
 	{
@@ -1167,6 +1300,14 @@ Graph.prototype.isReplacePlaceholders = function(cell)
 };
 
 /**
+ * Adds Alt+click to select cells behind cells.
+ */
+Graph.prototype.isTransparentClickEvent = function(evt)
+{
+	return mxEvent.isAltDown(evt);
+};
+
+/**
  * Adds ctrl+shift+connect to disable connections.
  */
 Graph.prototype.isIgnoreTerminalEvent = function(evt)
@@ -1179,7 +1320,9 @@ Graph.prototype.isIgnoreTerminalEvent = function(evt)
  */
 Graph.prototype.isSplitTarget = function(target, cells, evt)
 {
-	return !mxEvent.isShiftDown(evt) && mxGraph.prototype.isSplitTarget.apply(this, arguments);
+	return !this.model.isEdge(cells[0]) &&
+		!mxEvent.isAltDown(evt) && !mxEvent.isShiftDown(evt) &&
+		mxGraph.prototype.isSplitTarget.apply(this, arguments);
 };
 
 /**
@@ -1214,7 +1357,7 @@ Graph.prototype.isLabelMovable = function(cell)
 /**
  * Adds event if grid size is changed.
  */
-mxGraph.prototype.setGridSize = function(value)
+Graph.prototype.setGridSize = function(value)
 {
 	this.gridSize = value;
 	this.fireEvent(new mxEventObject('gridSizeChanged'));
@@ -1382,6 +1525,7 @@ Graph.prototype.createLayersDialog = function()
 			span.style.whiteSpace = 'nowrap';
 
 			var cb = document.createElement('input');
+			cb.style.display = 'inline-block';
 			cb.setAttribute('type', 'checkbox');
 			
 			if (model.isVisible(layer))
@@ -1422,6 +1566,7 @@ Graph.prototype.replacePlaceholders = function(cell, str)
 {
 	var result = [];
 	var last = 0;
+	var math = [];
 	
 	while (match = this.placeholderPattern.exec(str))
 	{
@@ -1507,8 +1652,10 @@ Graph.prototype.selectCellsForConnectVertex = function(cells, evt, hoverIcons)
 /**
  * Adds a connection to the given vertex.
  */
-Graph.prototype.connectVertex = function(source, direction, length, evt, forceClone)
+Graph.prototype.connectVertex = function(source, direction, length, evt, forceClone, ignoreCellAt)
 {
+	ignoreCellAt = (ignoreCellAt) ? ignoreCellAt : false;
+	
 	var pt = (source.geometry.relative && source.parent.geometry != null) ?
 			new mxPoint(source.parent.geometry.width * source.geometry.x, source.parent.geometry.height * source.geometry.y) :
 			new mxPoint(source.geometry.x, source.geometry.y);
@@ -1554,7 +1701,8 @@ Graph.prototype.connectVertex = function(source, direction, length, evt, forceCl
 	}
 	
 	// Checks actual end point of edge for target cell
-	var target = (mxEvent.isControlDown(evt) && !forceClone) ? null : this.getCellAt(dx + pt.x * s, dy + pt.y * s);
+	var target = (ignoreCellAt || (mxEvent.isControlDown(evt) && !forceClone)) ?
+		null : this.getCellAt(dx + pt.x * s, dy + pt.y * s);
 	
 	if (this.model.isAncestor(target, source))
 	{
@@ -1809,6 +1957,19 @@ Graph.prototype.convertValueToString = function(cell)
 	}
 	
 	return mxGraph.prototype.convertValueToString.apply(this, arguments);
+};
+
+/**
+ * Returns the link for the given cell.
+ */
+Graph.prototype.getLinksForState = function(state)
+{
+	if (state != null && state.text != null && state.text.node != null)
+	{
+		return state.text.node.getElementsByTagName('a');
+	}
+	
+	return null;
 };
 
 /**
@@ -2245,7 +2406,8 @@ Graph.prototype.getTooltipForCell = function(cell)
 		{
 			var ignored = ['label', 'tooltip', 'placeholders', 'placeholder'];
 			var attrs = cell.value.attributes;
-			
+			var temp = [];
+
 			// Hides links in edit mode
 			if (this.isEnabled())
 			{
@@ -2256,8 +2418,33 @@ Graph.prototype.getTooltipForCell = function(cell)
 			{
 				if (mxUtils.indexOf(ignored, attrs[i].nodeName) < 0 && attrs[i].nodeValue.length > 0)
 				{
-					tip += ((attrs[i].nodeName != 'link') ? attrs[i].nodeName + ':' : '') +
-						mxUtils.htmlEntities(attrs[i].nodeValue) + '\n';
+					temp.push({name: attrs[i].nodeName, value: attrs[i].nodeValue});
+				}
+			}
+			
+			// Sorts by name
+			temp.sort(function(a, b)
+			{
+				if (a.name < b.name)
+				{
+					return -1;
+				}
+				else if (a.name > b.name)
+				{
+					return 1;
+				}
+				else
+				{
+					return 0;
+				}
+			});
+
+			for (var i = 0; i < temp.length; i++)
+			{
+				if (temp[i].name != 'link' || !this.isPageLink(temp[i].value))
+				{
+					tip += ((temp[i].name != 'link') ? temp[i].name + ':' : '') +
+						mxUtils.htmlEntities(temp[i].value) + '\n';
 				}
 			}
 			
@@ -2406,38 +2593,43 @@ HoverIcons.prototype.checkCollisions = true;
 /**
  * Up arrow.
  */
-HoverIcons.prototype.triangleUp = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAOCAYAAAAxDQxDAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6N0ZBN0E3M0U5NjZGMTFFNTg5NTRDNzQwMTgwNDlEQzQiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6N0ZBN0E3M0Y5NjZGMTFFNTg5NTRDNzQwMTgwNDlEQzQiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo3RkE3QTczQzk2NkYxMUU1ODk1NEM3NDAxODA0OURDNCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo3RkE3QTczRDk2NkYxMUU1ODk1NEM3NDAxODA0OURDNCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Pj625P8AAACySURBVHjaYmRY956BROABxF+A+AgpmpjIsGQjEO8CYidaWeQHtYQNiDmBeAspljGRYMlqqCUwALPMg1oWhWCxBNmyjVCHUGQRyJKlOCyBATaoQ/zItSgciFcQsATdshBSLYqC+oSZhMTCBnVYFLEWgRQuItESGGCG6o0iZFECBZagW5aAyyKQxBwKLUG2bD4Qp6FblAyVoIYlyGAmzDIWKGMmA+0AyGw2RjIKVbIAQIABAFJRHSSk2rPoAAAAAElFTkSuQmCC' :
-	IMAGE_PATH + '/triangle-up.png', 26, 14);
+HoverIcons.prototype.triangleUp = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/triangle-up.png', 26, 14) :
+	Graph.createSvgImage(26, 14, '<path d="m 1 14 L 13 1 L 26 14 z" stroke="#fff" fill="rgb(41, 182, 242)"/>');
 
 /**
  * Right arrow.
  */
-HoverIcons.prototype.triangleRight = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAaCAYAAACHD21cAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6NThDQzc5RTU5NjZGMTFFNTg5NTRDNzQwMTgwNDlEQzQiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6NThDQzc5RTY5NjZGMTFFNTg5NTRDNzQwMTgwNDlEQzQiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo1OENDNzlFMzk2NkYxMUU1ODk1NEM3NDAxODA0OURDNCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo1OENDNzlFNDk2NkYxMUU1ODk1NEM3NDAxODA0OURDNCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PrHdKTUAAADDSURBVHjanNTBCgFRFIfxMeTZyEKkiBSRxbwREZGiNFZKWSnvY6OUUv6n7ilZaL459XVXv6a5c+cWovQeaSZqFoGJwzpVozzQZq4GeSDCv7AYcJ9Cx0vVpdDxWrUpdLxVLQr/4jjDBpYDblDoeKdqFDpOHRP4jSsU2rzVg8KnqqpbDFFdXck7vlRTXciuOjqT72ioo07k5Nju9dSRnFVHB/J3GBqqPf0fx2pDbwBDK3Ln2MdN1CLraSiFNcn6JJ+PAAMAbnMl1tyDPD8AAAAASUVORK5CYII=':
-	IMAGE_PATH + '/triangle-right.png', 14, 26);
+HoverIcons.prototype.triangleRight = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/triangle-right.png', 14, 26) :
+	Graph.createSvgImage(14, 26, '<path d="m 1 1 L 14 13 L 1 26 z" stroke="#fff" fill="rgb(41, 182, 242)"/>');
 
 /**
  * Down arrow.
  */
-HoverIcons.prototype.triangleDown = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAOCAYAAAAxDQxDAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6NThDQzc5RTk5NjZGMTFFNTg5NTRDNzQwMTgwNDlEQzQiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6NThDQzc5RUE5NjZGMTFFNTg5NTRDNzQwMTgwNDlEQzQiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo1OENDNzlFNzk2NkYxMUU1ODk1NEM3NDAxODA0OURDNCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo1OENDNzlFODk2NkYxMUU1ODk1NEM3NDAxODA0OURDNCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Pv9xyy0AAADESURBVHjaYmRY956BHoAJiHOA+D+NcRrIoilAnEVDz6QD8SwWKGc6EP8F4plUtiQRiBfAgg4GZkEl/lLBgr/IlqBbxACViKPQMgxLQIAFi8JlUHoREDOTYUkckhkMuHyEbFkEEP8i0ZJobJbgswgE1gBxKJGW/YI6bCW+fIQPbCLCsl9Qn6whlGEZiLDMH4i/47AklJAlxFoEAjuA2AfNMpglm4gtgogF+5As+wX15SZiNbOQmHxBlrkBMQ/Ul0QDgAADAC8qRII7g4RyAAAAAElFTkSuQmCC' :
-	IMAGE_PATH + '/triangle-down.png', 26, 14);
+HoverIcons.prototype.triangleDown = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/triangle-down.png', 26, 14) :
+	Graph.createSvgImage(26, 14, '<path d="m 1 1 L 13 14 L 26 1 z" stroke="#fff" fill="rgb(41, 182, 242)"/>');
 
 /**
  * Left arrow.
  */
-HoverIcons.prototype.triangleLeft = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAaCAYAAACHD21cAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6N0ZBN0E3M0E5NjZGMTFFNTg5NTRDNzQwMTgwNDlEQzQiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6N0ZBN0E3M0I5NjZGMTFFNTg5NTRDNzQwMTgwNDlEQzQiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo1OENDNzlFQjk2NkYxMUU1ODk1NEM3NDAxODA0OURDNCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo1OENDNzlFQzk2NkYxMUU1ODk1NEM3NDAxODA0OURDNCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Pi1fu2cAAADXSURBVHjalNTRB8JQFMfxVROxPyl6iuipRJFS2kv/TU89lY0piyw9pP6r3iP6He7Ndd3de87haxMfd+1ua0TVOxLOCuVNIdqiHZ1I4AbtUUsC6fIO6jzhwoWB/hOCU5Tpy+PCCTq5kA+OfKgODlGJ2r7/YMMBqkLIhn0uMmEP3VGH+zQQ7KKnBGmY+O6eD77QGH2kkOYhxeZdJTzjYnsfb2jOwbHjt6s6ltJHTmNa+SuFNBe0rMOh9/GM1i7M+QIUKLVxzNy2XB0zyYomTqUr6jnqLfoJMADoxSMHt6pxsAAAAABJRU5ErkJggg==' :
-	IMAGE_PATH + '/triangle-left.png', 14, 26);
+HoverIcons.prototype.triangleLeft = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/triangle-left.png', 14, 26) :
+	Graph.createSvgImage(14, 26, '<path d="m 14 1 L 1 13 L 14 26 z" stroke="#fff" fill="rgb(41, 182, 242)"/>');
 
 /**
  * Round target.
  */
-HoverIcons.prototype.roundDrop = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAaCAYAAACpSkzOAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6RTgxRjYzRTU1MDRFMTFFNEExQ0VFNDQwNDhGNzg2RDkiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6RTgxRjYzRTY1MDRFMTFFNEExQ0VFNDQwNDhGNzg2RDkiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDpFODFGNjNFMzUwNEUxMUU0QTFDRUU0NDA0OEY3ODZEOSIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDpFODFGNjNFNDUwNEUxMUU0QTFDRUU0NDA0OEY3ODZEOSIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PuJ657wAAAE0SURBVHjaYvz//z8DPQATA50AC4zBuP4DLjXaQOwMxJZArAfE8lDxh0B8CYiPA/FeIL6KTfP/QAFUi7AABSBOAOJoIFbBIq8FxRFAfAeIlwLxAiB+gNdHaMABiIuB2IfIkAE5pB6IjYG4F4gPEBNHIEtaSLAEGfhA9ToQskgB6hNrCuLdGmqGAj6LEsj0CTafJeCySBsa8dQC0VAzMSxyxpG6yAUqUDMxLLKkQT61xGaRHg0s0sNmkTwNLJKne1mHbNFDGpj/EJtFl2hg0SVsFh2ngUXHsVm0F1oKUwvcgZqJYdFVaFFPLbAUuY5CT3Wg+mQLFSzZAjULZ6H6AFqfHKXAkqNQMx4Qqo9AlVYNmT7bAtV7gNga9gDURWfxVOXoEY+3KmeENbdo3ThhHHbtOoAAAwDmEETshQ0fBAAAAABJRU5ErkJggg==' :
-	IMAGE_PATH + '/round-drop.png', 26, 26);
+HoverIcons.prototype.roundDrop = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/round-drop.png', 26, 26) :
+	Graph.createSvgImage(26, 26, '<circle cx="13" cy="13" r="12" stroke="#fff" fill="rgb(41, 182, 242)"/>');
 
 /**
  * Refresh target.
  */
 HoverIcons.prototype.refreshTarget = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6NDQxNERDRTU1QjY1MTFFNDkzNTRFQTVEMTdGMTdBQjciIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6NDQxNERDRTY1QjY1MTFFNDkzNTRFQTVEMTdGMTdBQjciPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo0NDE0RENFMzVCNjUxMUU0OTM1NEVBNUQxN0YxN0FCNyIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo0NDE0RENFNDVCNjUxMUU0OTM1NEVBNUQxN0YxN0FCNyIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PsvuX50AAANaSURBVHja7FjRZ1tRGD9ZJ1NCyIQSwrivI4Q8hCpjlFDyFEoYfSp9Ko1QWnmo0If+BSXkIfo0QirTMUpeGo2EPfWllFYjZMLKLDJn53d3biU337m5J223bPbxk5t7v+/c3/2+73znO8fDOWezKM/YjMpz68Lj8ejY+QTeCCwLxOS9qPxtyN+6wAeBTwJ31CCO0cJDjXBGBN4LfIepSwykTUT1bgpuib0SONIgo8KRHOtRiCFcvUcgZeGrHPNBxLIyFPyRgTGz0xLbegJCdmzpElue5KlAIMDX19d5uVzm5+fnfDAYmMA17uEZdOx2Yvb/sHlu2S0xwymn5ufneTab5b1ej08S6EAXNrDd2dnhiUTim21MvMtwQ6yiIrWwsMDPzs64rsBmf3/fvM7n89TYlUnEllSkQqEQv7q64g+Vk5MTVXosORErU0Zer5f0FEIlw2N6MxwO82QyaXql2+2SxDqdjopYWUUsqEp45IldqtWq6UWVh/1+P7+8vCTJ4QMUJSRIEXuneoH96w8PDyeWAnhSJfCqwm6NIlaklFdXV0cGhRcQ2mlJQXK5nMq2YPEZbnteU1U2lUqN/D84OGD9fl+5fgnSrFarsUwmw0qlEru4uBjTicViTk3Cr27HSnxR+Doyz0ZE1CAWiUTusbu7y9rttlZv5fP5WDQavYfIMba4uEipfhF8XtqJoZXx/uH+sC/4vPg7OljZZQbsCmLtYzc3N6zRaJhotVrmfx0xDINtbm6athYUeXpHdbBNaqZUKpWxWXV7e2vex+xaWVnhc3NzjrPUXgexyCt0m67LBV7uJMITjqRE4o8tZeg8FPpFitgapYxiOC0poFgsji1jKNo6BZZckrAGUtJsNk1vqAihCBcKhTE7hNWhqw2qFnGy5UFOUYJVIJ1OjzSE+BCEilon0URavRmBqnbbQ00AXbm+vnZc9O1tj72OnQoc2+cwygRkb2+P1et17ZoEm3g87lRmjgWZ00kbXkNuse6/Bu2wlegIxfb2tuvWGroO4bO2c4bbzUh60mxDXm1sbJhhxkQYnhS4h2fUZoRAWnf7lv8N27f8P7Xhnekjgpk+VKGOoQbsiY+hhhtF3YO7twIJ+ULvUGv+GQ2fQEvWxI/THNx5/p/BaspPAQYAqStgiSQwCDoAAAAASUVORK5CYII=' :
 	IMAGE_PATH + '/refresh.png', 38, 38);
+
+/**
+ * Tolerance for hover icon clicks.
+ */
+HoverIcons.prototype.tolerance = (mxClient.IS_TOUCH) ? 6 : 0;
 
 /**
  * 
@@ -2629,6 +2821,7 @@ HoverIcons.prototype.createArrow = function(img, tooltip)
 		arrow = mxUtils.createImage(img.src);
 		arrow.style.width = img.width + 'px';
 		arrow.style.height = img.height + 'px';
+		arrow.style.padding = this.tolerance + 'px';
 	}
 	
 	if (tooltip != null)
@@ -2803,13 +2996,21 @@ HoverIcons.prototype.drag = function(evt, x, y)
 /**
  *
  */
+HoverIcons.prototype.getStateAt = function(state, x, y)
+{
+	return this.graph.view.getState(this.graph.getCellAt(x, y));
+};
+
+/**
+ *
+ */
 HoverIcons.prototype.click = function(state, dir, me)
 {
 	var evt = me.getEvent();
 	var x = me.getGraphX();
 	var y = me.getGraphY();
 	
-	var tmp = this.graph.view.getState(this.graph.getCellAt(x, y));
+	var tmp = this.getStateAt(state, x, y);
 	
 	if (tmp != null && this.graph.model.isEdge(tmp.cell) && !mxEvent.isControlDown(evt) &&
 		(tmp.getVisibleTerminalState(true) == state || tmp.getVisibleTerminalState(false) == state))
@@ -2915,19 +3116,19 @@ HoverIcons.prototype.repaint = function()
 				}
 			}
 			
-			this.arrowUp.style.left = Math.round(this.currentState.getCenterX() - this.triangleUp.width / 2) + 'px';
-			this.arrowUp.style.top = Math.round(bds.y - this.triangleUp.height) + 'px';
+			this.arrowUp.style.left = Math.round(this.currentState.getCenterX() - this.triangleUp.width / 2 - this.tolerance) + 'px';
+			this.arrowUp.style.top = Math.round(bds.y - this.triangleUp.height - this.tolerance) + 'px';
 			mxUtils.setOpacity(this.arrowUp, this.inactiveOpacity);
 			
-			this.arrowRight.style.left = Math.round(bds.x + bds.width) + 'px';
-			this.arrowRight.style.top = Math.round(this.currentState.getCenterY() - this.triangleRight.height / 2) + 'px';
+			this.arrowRight.style.left = Math.round(bds.x + bds.width - this.tolerance) + 'px';
+			this.arrowRight.style.top = Math.round(this.currentState.getCenterY() - this.triangleRight.height / 2 - this.tolerance) + 'px';
 			mxUtils.setOpacity(this.arrowRight, this.inactiveOpacity);
 			
-			this.arrowDown.style.left = this.arrowUp.style.left
-			this.arrowDown.style.top = Math.round(bds.y + bds.height) + 'px';
+			this.arrowDown.style.left = this.arrowUp.style.left;
+			this.arrowDown.style.top = Math.round(bds.y + bds.height - this.tolerance) + 'px';
 			mxUtils.setOpacity(this.arrowDown, this.inactiveOpacity);
 			
-			this.arrowLeft.style.left = Math.round(bds.x - this.triangleLeft.width) + 'px';
+			this.arrowLeft.style.left = Math.round(bds.x - this.triangleLeft.width - this.tolerance) + 'px';
 			this.arrowLeft.style.top = this.arrowRight.style.top;
 			mxUtils.setOpacity(this.arrowLeft, this.inactiveOpacity);
 			
@@ -2948,45 +3149,29 @@ HoverIcons.prototype.repaint = function()
 					bottom = null;
 				}
 				
-				// Checks right arrow
-				if (right != null && !this.graph.model.isAncestor(right, this.currentState.cell))
+				var currentGeo = this.graph.getCellGeometry(this.currentState.cell);
+				
+				var checkCollision = mxUtils.bind(this, function(cell, arrow)
 				{
-					this.arrowRight.style.visibility = 'hidden';
-				}
-				else
-				{
-					this.arrowRight.style.visibility = 'visible';
-				}
-
-				// Checks left arrow
-				if (left != null && !this.graph.model.isAncestor(left, this.currentState.cell))
-				{
-					this.arrowLeft.style.visibility = 'hidden';
-				}
-				else
-				{
-					this.arrowLeft.style.visibility = 'visible';
-				}
-
-				// Checks top arrow
-				if (top != null && !this.graph.model.isAncestor(top, this.currentState.cell))
-				{
-					this.arrowUp.style.visibility = 'hidden';
-				}
-				else
-				{
-					this.arrowUp.style.visibility = 'visible';
-				}
-
-				// Checks bottom arrow
-				if (bottom != null && !this.graph.model.isAncestor(bottom, this.currentState.cell))
-				{
-					this.arrowDown.style.visibility = 'hidden';
-				}
-				else
-				{
-					this.arrowDown.style.visibility = 'visible';
-				}
+					var geo = this.graph.model.isVertex(cell) && this.graph.getCellGeometry(cell);
+					
+					// Ignores collision if vertex is more than 3 times the size of this vertex
+					if (cell != null && !this.graph.model.isAncestor(cell, this.currentState.cell) &&
+						(geo == null || currentGeo == null || (geo.height < 6 * currentGeo.height &&
+						geo.width < 6 * currentGeo.width)))
+					{
+						arrow.style.visibility = 'hidden';
+					}
+					else
+					{
+						arrow.style.visibility = 'visible';
+					}
+				});
+				
+				checkCollision(right, this.arrowRight);
+				checkCollision(left, this.arrowLeft);
+				checkCollision(top, this.arrowUp);
+				checkCollision(bottom, this.arrowDown);
 			}
 			else
 			{
@@ -3184,6 +3369,336 @@ HoverIcons.prototype.setCurrentState = function(state)
 
 (function()
 {
+	
+	/**
+	 * Reset the list of processed edges.
+	 */
+	var mxGraphViewResetValidationState = mxGraphView.prototype.resetValidationState;
+	
+	mxGraphView.prototype.resetValidationState = function()
+	{
+		mxGraphViewResetValidationState.apply(this, arguments);
+		
+		this.validEdges = [];
+	};
+	
+	/**
+	 * Updates jumps for valid edges and repaints if needed.
+	 */
+	var mxGraphViewValidateCellState = mxGraphView.prototype.validateCellState;
+	
+	mxGraphView.prototype.validateCellState = function(cell, recurse)
+	{
+		var state = this.getState(cell);
+		
+		// Forces repaint if jumps change on a valid edge
+		if (state != null && this.graph.model.isEdge(state.cell) &&
+			state.style != null && state.style[mxConstants.STYLE_CURVED] != 1 &&
+			!state.invalid && this.updateLineJumps(state))
+		{
+			this.graph.cellRenderer.redraw(state, false, this.isRendering());
+		}
+		
+		state = mxGraphViewValidateCellState.apply(this, arguments);
+		
+		// Adds to the list of edges that may intersect with later edges
+		if (state != null && this.graph.model.isEdge(state.cell) &&
+			state.style[mxConstants.STYLE_CURVED] != 1)
+		{
+			// LATER: Reuse jumps for valid edges
+			this.validEdges.push(state);
+		}
+		
+		return state;
+	};
+
+	/**
+	 * Forces repaint if routed points have changed.
+	 */
+	var mxCellRendererIsShapeInvalid = mxCellRenderer.prototype.isShapeInvalid;
+	
+	mxCellRenderer.prototype.isShapeInvalid = function(state, shape)
+	{
+		return mxCellRendererIsShapeInvalid.apply(this, arguments) ||
+			(state.routedPoints != null && shape.routedPoints != null &&
+			!mxUtils.equalPoints(shape.routedPoints, state.routedPoints))
+	};
+
+	
+	/**
+	 * Updates jumps for invalid edges.
+	 */
+	var mxGraphViewUpdateCellState = mxGraphView.prototype.updateCellState;
+	
+	mxGraphView.prototype.updateCellState = function(state)
+	{
+		mxGraphViewUpdateCellState.apply(this, arguments);
+
+		// Updates jumps on invalid edge before repaint
+		if (this.graph.model.isEdge(state.cell) &&
+			state.style[mxConstants.STYLE_CURVED] != 1)
+		{
+			this.updateLineJumps(state);
+		}
+	};
+	
+	/**
+	 * Updates the jumps between given state and processed edges.
+	 */
+	mxGraphView.prototype.updateLineJumps = function(state)
+	{
+		var pts = state.absolutePoints;
+		
+		if (Graph.lineJumpsEnabled)
+		{
+			var changed = state.routedPoints != null;
+			var actual = null;
+			
+			if (pts != null && this.validEdges != null &&
+				mxUtils.getValue(state.style, 'jumpStyle', 'none') !== 'none')
+			{
+				var thresh = 0.5 * this.scale;
+				changed = false;
+				actual = [];
+				
+				// Type 0 means normal waypoint, 1 means jump
+				function addPoint(type, x, y)
+				{
+					var rpt = new mxPoint(x, y);
+					rpt.type = type;
+					
+					actual.push(rpt);
+					var curr = (state.routedPoints != null) ? state.routedPoints[actual.length - 1] : null;
+					
+					return curr == null || curr.type != type || curr.x != x || curr.y != y;
+				};
+				
+				for (var i = 0; i < pts.length - 1; i++)
+				{
+					var p1 = pts[i + 1];
+					var p0 = pts[i];
+					var list = [];
+					
+					// Ignores waypoints on straight segments
+					var pn = pts[i + 2];
+					
+					while (i < pts.length - 2 &&
+						mxUtils.ptSegDistSq(p0.x, p0.y, pn.x, pn.y,
+						p1.x, p1.y) < 1 * this.scale * this.scale)
+					{
+						p1 = pn;
+						i++;
+						pn = pts[i + 2];
+					}
+					
+					changed = addPoint(0, p0.x, p0.y) || changed;
+					
+					// Processes all previous edges
+					for (var e = 0; e < this.validEdges.length; e++)
+					{
+						var state2 = this.validEdges[e];
+						var pts2 = state2.absolutePoints;
+						
+						if (pts2 != null && mxUtils.intersects(state, state2))
+						{
+							// Compares each segment of the edge with the current segment
+							for (var j = 0; j < pts2.length - 1; j++)
+							{
+								var p3 = pts2[j + 1];
+								var p2 = pts2[j];
+								
+								// Ignores waypoints on straight segments
+								pn = pts2[j + 2];
+								
+								while (j < pts2.length - 2 &&
+									mxUtils.ptSegDistSq(p2.x, p2.y, pn.x, pn.y,
+									p3.x, p3.y) < 1 * this.scale * this.scale)
+								{
+									p3 = pn;
+									j++;
+									pn = pts2[j + 2];
+								}
+								
+								var pt = mxUtils.intersection(p0.x, p0.y, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+	
+								// Handles intersection between two segments
+								if (pt != null && (Math.abs(pt.x - p2.x) > thresh ||
+									Math.abs(pt.y - p2.y) > thresh) &&
+									(Math.abs(pt.x - p3.x) > thresh ||
+									Math.abs(pt.y - p3.y) > thresh))
+								{
+									var dx = pt.x - p0.x;
+									var dy = pt.y - p0.y;
+									var temp = {distSq: dx * dx + dy * dy, x: pt.x, y: pt.y};
+								
+									// Intersections must be ordered by distance from start of segment
+									for (var t = 0; t < list.length; t++)
+									{
+										if (list[t].distSq > temp.distSq)
+										{
+											list.splice(t, 0, temp);
+											temp = null;
+											
+											break;
+										}
+									}
+									
+									// Ignores multiple intersections at segment joint
+									if (temp != null && (list.length == 0 ||
+										list[list.length - 1].x !== temp.x ||
+										list[list.length - 1].y !== temp.y))
+									{
+										list.push(temp);
+									}
+								}
+							}
+						}
+					}
+					
+					// Adds ordered intersections to routed points
+					for (var j = 0; j < list.length; j++)
+					{
+						changed = addPoint(1, list[j].x, list[j].y) || changed;
+					}
+				}
+	
+				var pt = pts[pts.length - 1];
+				changed = addPoint(0, pt.x, pt.y) || changed;
+			}
+			
+			state.routedPoints = actual;
+			
+			return changed;
+		}
+		else
+		{
+			return false;
+		}
+	};
+	
+	/**
+	 * Overrides painting the actual shape for taking into account jump style.
+	 */
+	var mxConnectorPaintLine = mxConnector.prototype.paintLine;
+
+	mxConnector.prototype.paintLine = function (c, absPts, rounded)
+	{
+		// Required for checking dirty state
+		this.routedPoints = (this.state != null) ? this.state.routedPoints : null;
+		
+		if (this.outline || this.state == null || this.style == null ||
+			this.state.routedPoints == null || this.state.routedPoints.length == 0)
+		{
+			mxConnectorPaintLine.apply(this, arguments);
+		}
+		else
+		{
+			var arcSize = mxUtils.getValue(this.style, mxConstants.STYLE_ARCSIZE,
+				mxConstants.LINE_ARCSIZE) / 2;
+			var size = (parseInt(mxUtils.getValue(this.style, 'jumpSize',
+				Graph.defaultJumpSize)) - 2) / 2 + this.strokewidth;
+			var style = mxUtils.getValue(this.style, 'jumpStyle', 'none');
+			var f = Editor.jumpSizeRatio;
+			var moveTo = true;
+			var last = null;
+			var len = null;
+			var pts = [];
+			var n = null;
+			c.begin();
+			
+			for (var i = 0; i < this.state.routedPoints.length; i++)
+			{
+				var rpt = this.state.routedPoints[i];
+				var pt = new mxPoint(rpt.x / this.scale, rpt.y / this.scale);
+				
+				// Takes first and last point from passed-in array
+				if (i == 0)
+				{
+					pt = absPts[0];
+				}
+				else if (i == this.state.routedPoints.length - 1)
+				{
+					pt = absPts[absPts.length - 1];
+				}
+				
+				var done = false;
+
+				// Type 1 is an intersection
+				if (last != null && rpt.type == 1)
+				{
+					// Checks if next/previous points are too close
+					var next = this.state.routedPoints[i + 1];
+					var dx = next.x / this.scale - pt.x;
+					var dy = next.y / this.scale - pt.y;
+					var dist = dx * dx + dy * dy;
+
+					if (n == null)
+					{
+						n = new mxPoint(pt.x - last.x, pt.y - last.y);
+						len = Math.sqrt(n.x * n.x + n.y * n.y);
+						n.x = n.x * size / len;
+						n.y = n.y * size / len;
+					}
+					
+					if (dist > size * size && len > 0)
+					{
+						var dx = last.x - pt.x;
+						var dy = last.y - pt.y;
+						var dist = dx * dx + dy * dy;
+						
+						if (dist > size * size)
+						{
+							var p0 = new mxPoint(pt.x - n.x, pt.y - n.y);
+							var p1 = new mxPoint(pt.x + n.x, pt.y + n.y);
+							pts.push(p0);
+							
+							this.addPoints(c, pts, rounded, arcSize, false, null, moveTo);
+							
+							var f = (Math.round(n.x) < 0 || (Math.round(n.x) == 0
+									&& Math.round(n.y) <= 0)) ? 1 : -1;
+							moveTo = false;
+
+							if (style == 'sharp')
+							{
+								c.lineTo(p0.x - n.y * f, p0.y + n.x * f);
+								c.lineTo(p1.x - n.y * f, p1.y + n.x * f);
+								c.lineTo(p1.x, p1.y);
+							}
+							else if (style == 'arc')
+							{
+								f *= 1.3;
+								c.curveTo(p0.x - n.y * f, p0.y + n.x * f,
+									p1.x - n.y * f, p1.y + n.x * f,
+									p1.x, p1.y);
+							}
+							else
+							{
+								c.moveTo(p1.x, p1.y);
+								moveTo = true;
+							}
+	
+							pts = [p1];
+							done = true;
+						}
+					}
+				}
+				else
+				{
+					n = null;
+				}
+				
+				if (!done)
+				{
+					pts.push(pt);
+					last = pt;
+				}
+			}
+			
+			this.addPoints(c, pts, rounded, arcSize, false, null, moveTo);
+			c.stroke();
+		}
+	};
+	
 	/**
 	 * Adds support for snapToPoint style.
 	 */
@@ -3222,41 +3737,45 @@ HoverIcons.prototype.setCurrentState = function(state)
 		        pt = mxUtils.getRotatedPoint(pt, cos, sin, center);
 		    }
 		    
-		    // Finds closest connection point
-		    if (start != null)
-		    {
-		        var constraints = this.graph.getAllConnectionConstraints(start)
-		        var nearest = null;
-		        var dist = null;
-		    
-		        for (var i = 0; i < constraints.length; i++)
-		        {
-		            var cp = this.graph.getConnectionPoint(start, constraints[i]);
-		            
-		            if (cp != null)
-		            {
-		                var tmp = (cp.x - pt.x) * (cp.x - pt.x) + (cp.y - pt.y) * (cp.y - pt.y);
-		            
-		                if (dist == null || tmp < dist)
-		                {
-		                    nearest = cp;
-		                    dist = tmp;
-		                }
-		            }
-		        }
-		        
-		        if (nearest != null)
-		        {
-		            pt = nearest;
-		        }
-		    }
-		    
-		    edge.setAbsoluteTerminalPoint(pt, source);
+		    edge.setAbsoluteTerminalPoint(this.snapToAnchorPoint(edge, start, end, source, pt), source);
 		}
 		else
 		{
 			mxGraphViewUpdateFloatingTerminalPoint.apply(this, arguments);
 		}
+	};
+
+	mxGraphView.prototype.snapToAnchorPoint = function(edge, start, end, source, pt)
+	{
+		if (start != null && edge != null)
+		{
+	        var constraints = this.graph.getAllConnectionConstraints(start)
+	        var nearest = null;
+	        var dist = null;
+	    
+	        for (var i = 0; i < constraints.length; i++)
+	        {
+	            var cp = this.graph.getConnectionPoint(start, constraints[i]);
+	            
+	            if (cp != null)
+	            {
+	                var tmp = (cp.x - pt.x) * (cp.x - pt.x) + (cp.y - pt.y) * (cp.y - pt.y);
+	            
+	                if (dist == null || tmp < dist)
+	                {
+	                    nearest = cp;
+	                    dist = tmp;
+	                }
+	            }
+	        }
+	        
+	        if (nearest != null)
+	        {
+	            pt = nearest;
+	        }
+		}
+		
+		return pt;
 	};
 		
 	/**
@@ -3343,7 +3862,7 @@ mxStencilRegistry.getStencil = function(name)
 {
 	var result = mxStencilRegistry.stencils[name];
 	
-	if (result == null && mxCellRenderer.prototype.defaultShapes[name] == null && mxStencilRegistry.dynamicLoading)
+	if (result == null && mxCellRenderer.defaultShapes[name] == null && mxStencilRegistry.dynamicLoading)
 	{
 		var basename = mxStencilRegistry.getBasenameForStencil(name);
 		
@@ -3356,8 +3875,6 @@ mxStencilRegistry.getStencil = function(name)
 			{
 				if (mxStencilRegistry.packages[basename] == null)
 				{
-					mxStencilRegistry.packages[basename] = 1;
-					
 					for (var i = 0; i < libs.length; i++)
 					{
 						var fname = libs[i];
@@ -3393,6 +3910,8 @@ mxStencilRegistry.getStencil = function(name)
 							//mxResources.add(fname);
 						}
 					}
+
+					mxStencilRegistry.packages[basename] = 1;
 				}
 			}
 			else
@@ -3451,18 +3970,13 @@ mxStencilRegistry.loadStencilSet = function(stencilFile, postStencilLoad, force,
 			{
 				if (async)
 				{
-					var req = mxUtils.get(stencilFile, mxUtils.bind(this, function(req)
+					mxStencilRegistry.loadStencil(stencilFile, mxUtils.bind(this, function(xmlDoc2)
 					{
-						if (req.getStatus() >= 200 && req.getStatus() <= 299)
+						if (xmlDoc2 != null && xmlDoc2.documentElement != null)
 						{
-							xmlDoc = req.getXml();
-							mxStencilRegistry.packages[stencilFile] = xmlDoc;
+							mxStencilRegistry.packages[stencilFile] = xmlDoc2;
 							install = true;
-							
-							if (xmlDoc != null && xmlDoc.documentElement != null)
-							{
-								mxStencilRegistry.parseStencilSet(xmlDoc.documentElement, postStencilLoad, install);
-							}
+							mxStencilRegistry.parseStencilSet(xmlDoc2.documentElement, postStencilLoad, install);
 						}
 					}));
 				
@@ -3470,8 +3984,7 @@ mxStencilRegistry.loadStencilSet = function(stencilFile, postStencilLoad, force,
 				}
 				else
 				{
-					var req = mxUtils.load(stencilFile);
-					xmlDoc = req.getXml();
+					xmlDoc = mxStencilRegistry.loadStencil(stencilFile);
 					mxStencilRegistry.packages[stencilFile] = xmlDoc;
 					install = true;
 				}
@@ -3489,6 +4002,22 @@ mxStencilRegistry.loadStencilSet = function(stencilFile, postStencilLoad, force,
 		{
 			mxStencilRegistry.parseStencilSet(xmlDoc.documentElement, postStencilLoad, install);
 		}
+	}
+};
+
+// Loads the given stencil XML file.
+mxStencilRegistry.loadStencil = function(filename, fn)
+{
+	if (fn != null)
+	{
+		var req = mxUtils.get(filename, mxUtils.bind(this, function(req)
+		{
+			fn((req.getStatus() >= 200 && req.getStatus() <= 299) ? req.getXml() : null);
+		}));
+	}
+	else
+	{
+		return mxUtils.load(filename).getXml();
 	}
 };
 
@@ -3671,20 +4200,15 @@ if (typeof mxVertexHandler != 'undefined')
 		};
 		
 		/**
+		 * 
+		 */
+		Graph.prototype.defaultVertexStyle = {};
+
+		/**
 		 * Contains the default style for edges.
 		 */
-		Graph.prototype.defaultEdgeStyle = {'edgeStyle': 'orthogonalEdgeStyle', 'rounded': '0', 'html': '1',
+		Graph.prototype.defaultEdgeStyle = {'edgeStyle': 'orthogonalEdgeStyle', 'rounded': '0',
 			'jettySize': 'auto', 'orthogonalLoop': '1'};
-		
-		/**
-		 * Contains the current style for edges.
-		 */
-		Graph.prototype.currentEdgeStyle = Graph.prototype.defaultEdgeStyle;
-		
-		/**
-		 * Contains the current style for vertices.
-		 */
-		Graph.prototype.currentVertexStyle = {};
 
 		/**
 		 * Returns the current edge style as a string.
@@ -3711,6 +4235,16 @@ if (typeof mxVertexHandler != 'undefined')
 			if (this.currentEdgeStyle['comic'] != null)
 			{
 				style += 'comic=' + this.currentEdgeStyle['comic'] + ';';
+			}
+
+			if (this.currentEdgeStyle['jumpStyle'] != null)
+			{
+				style += 'jumpStyle=' + this.currentEdgeStyle['jumpStyle'] + ';';
+			}
+
+			if (this.currentEdgeStyle['jumpSize'] != null)
+			{
+				style += 'jumpSize=' + this.currentEdgeStyle['jumpSize'] + ';';
 			}
 			
 			// Special logic for custom property of elbowEdgeStyle
@@ -3754,6 +4288,73 @@ if (typeof mxVertexHandler != 'undefined')
 				dec.decode(node, this.getStylesheet());
 			}
 		};
+		
+		/**
+		 * 
+		 */
+		Graph.prototype.importGraphModel = function(node, dx, dy, crop)
+		{
+			dx = (dx != null) ? dx : 0;
+			dy = (dy != null) ? dy : 0;
+			
+			var cells = []
+			var model = new mxGraphModel();
+			var codec = new mxCodec(node.ownerDocument);
+			codec.decode(node, model);
+			
+			var childCount = model.getChildCount(model.getRoot());
+			var targetChildCount = this.model.getChildCount(this.model.getRoot());
+			
+			// Merges into active layer if one layer is pasted
+			this.model.beginUpdate();
+			try
+			{
+				// Mapping for multiple calls to cloneCells with the same set of cells
+				var mapping = new Object();
+				
+				for (var i = 0; i < childCount; i++)
+				{
+					var parent = model.getChildAt(model.getRoot(), i);
+					
+					// Adds cells to existing layer if not locked
+					if (childCount == 1 && !this.isCellLocked(this.getDefaultParent()))
+					{
+						var children = model.getChildren(parent);
+						cells = cells.concat(this.importCells(children, dx, dy, this.getDefaultParent(), null, mapping));
+					}
+					else
+					{
+						// Delta is non cascading, needs separate move for layers
+						parent = this.importCells([parent], 0, 0, this.model.getRoot(), null, mapping)[0];
+						var children = this.model.getChildren(parent);
+						this.moveCells(children, dx, dy);
+						cells = cells.concat(children);
+					}
+				}
+				
+				if (crop)
+				{
+					if (this.isGridEnabled())
+					{
+						dx = this.snap(dx);
+						dy = this.snap(dy);
+					}
+					
+					var bounds = this.getBoundingBoxFromGeometry(cells, true);
+					
+					if (bounds != null)
+					{
+						this.moveCells(cells, dx - bounds.x, dy - bounds.y);
+					}
+				}
+			}
+			finally
+			{
+				this.model.endUpdate();
+			}
+			
+			return cells;
+		}
 		
 		/**
 		 * Overrides method to provide connection constraints for shapes.
@@ -4401,38 +5002,6 @@ if (typeof mxVertexHandler != 'undefined')
 		};
 
 		/**
-		 * Returns true if the fiven href references an external protocol that
-		 * should never open in a new window. Default returns true for mailto.
-		 */
-		Graph.prototype.isExternalProtocol = function(href)
-		{
-			return href.substring(0, 7) === 'mailto:';
-		};
-
-		/**
-		 * Hook for links to open in same window. Default returns true for anchors,
-		 * links to same domain or if target == 'self' in the config.
-		 */
-		Graph.prototype.isBlankLink = function(href)
-		{
-			return !this.isExternalProtocol(href) &&
-				(this.linkPolicy === 'blank' ||
-				(this.linkPolicy !== 'self' &&
-				!this.isRelativeUrl(href) &&
-				href.substring(0, this.domainUrl.length) !== this.domainUrl));
-		};
-
-		/**
-		 * 
-		 */
-		Graph.prototype.isRelativeUrl = function(url)
-		{
-			return url != null && !this.absoluteUrlPattern.test(url) &&
-				url.substring(0, 5) !== 'data:' &&
-				!this.isExternalProtocol(url);
-		};
-
-		/**
 		 * Adds a handler for clicking on shapes with links. This replaces all links in labels.
 		 */
 		Graph.prototype.addClickHandler = function(highlight, beforeClick, onClick)
@@ -4453,9 +5022,9 @@ if (typeof mxVertexHandler != 'undefined')
 							links[i].setAttribute('href', href);
 							
 							if (beforeClick != null)
-			    			{
-			    				mxEvent.addListener(links[i], 'click', beforeClick);
-			    			}
+			    				{
+								mxEvent.addGestureListeners(links[i], null, null, beforeClick);
+			    				}
 						}
 					}
 				}
@@ -4528,7 +5097,15 @@ if (typeof mxVertexHandler != 'undefined')
 			    	}
 			    	else
 			    	{
-			    		if (me.getSource().nodeName.toLowerCase() == 'a')
+				    	// Checks for parent link
+				    	var linkNode = me.getSource();
+				    	
+				    	while (linkNode != null && linkNode.nodeName.toLowerCase() != 'a')
+				    	{
+				    		linkNode = linkNode.parentNode;
+				    	}
+				    	
+			    		if (linkNode != null)
 			    		{
 			    			this.clear();
 			    		}
@@ -4546,35 +5123,63 @@ if (typeof mxVertexHandler != 'undefined')
 			    },
 			    mouseUp: function(sender, me)
 			    {
+			    	
 			    	var source = me.getSource();
+			    	var evt = me.getEvent();
+			    	
+			    	// Checks for parent link
+			    	var linkNode = source;
+			    	
+			    	while (linkNode != null && linkNode.nodeName.toLowerCase() != 'a')
+			    	{
+			    		linkNode = linkNode.parentNode;
+			    	}
 			    	
 			    	// Ignores clicks on links and collapse/expand icon
-			    	if (source.nodeName.toLowerCase() != 'a' && !me.isConsumed() &&
-			    		(me.getState() == null || !me.isSource(me.getState().control)) &&
-			    		(mxEvent.isLeftMouseButton(me.getEvent()) || mxEvent.isTouchEvent(me.getEvent())))
+			    	if (linkNode == null &&
+			    		(((Math.abs(this.scrollLeft - graph.container.scrollLeft) < tol &&
+			        	Math.abs(this.scrollTop - graph.container.scrollTop) < tol) &&
+			    		(me.getState() == null || !me.isSource(me.getState().control))) &&
+			    		((mxEvent.isLeftMouseButton(evt) &&
+					!mxEvent.isPopupTrigger(evt)) ||
+			    		mxEvent.isTouchEvent(evt))))
 			    	{
 				    	if (this.currentLink != null) 
 				    	{
 				    		var blank = graph.isBlankLink(this.currentLink);
 				    		
-				    		if (!blank && beforeClick != null)
+				    		if ((this.currentLink.substring(0, 5) === 'data:' ||
+				    			!blank) && beforeClick != null)
 				    		{
-			    				beforeClick(me.getEvent());
+			    				beforeClick(evt, this.currentLink);
 				    		}
 				    		
-				    		var target = (blank) ? graph.linkTarget : '_top';
-				    		
-				    		// Workaround for blocking in same iframe
+				    		if (!mxEvent.isConsumed(evt))
+				    		{
+					    		var target = (blank) ? graph.linkTarget : '_top';
+					    		
+					    		// Workaround for blocking in same iframe
 							if (target == '_self' && window != window.top)
 							{
 								window.location.href = this.currentLink;
 							}
 							else
 							{
-								window.open(this.currentLink, target);
+								// Avoids page reload for anchors (workaround for IE but used everywhere)
+								if (this.currentLink.substring(0, graph.baseUrl.length) == graph.baseUrl &&
+									this.currentLink.charAt(graph.baseUrl.length) == '#' &&
+									target == '_top' && window == window.top)
+								{
+									window.location.hash = this.currentLink.split('#')[1];
+								}
+								else
+								{
+									window.open(this.currentLink, target);
+								}
 							}
-				    		
-				    		me.consume();
+					    		
+					    		me.consume();
+				    		}
 				    	}
 				    	else if (onClick != null && !me.isConsumed() &&
 			    			(Math.abs(this.scrollLeft - graph.container.scrollLeft) < tol &&
@@ -5281,6 +5886,38 @@ if (typeof mxVertexHandler != 'undefined')
 		};
 	
 		/**
+		 * Creates an anchor elements for handling the given link in the
+		 * hint that is shown when the cell is selected.
+		 */
+		Graph.prototype.createLinkForHint = function(link, label)
+		{
+			label = (label != null) ? label : link;
+			
+			var a = document.createElement('a');
+			a.setAttribute('href', this.getAbsoluteUrl(link));
+			a.setAttribute('title', link);
+			
+			if (this.linkTarget != null)
+			{
+				a.setAttribute('target', this.linkTarget);
+			}
+			
+			// Adds shortened label to link
+			var max = 40;
+			var head = 26;
+			var tail = 10;
+			
+			if (label.length > max)
+			{
+				label = label.substring(0, head) + '...' + label.substring(label.length - tail);
+			}
+
+			mxUtils.write(a, label);
+			
+			return a;
+		};
+		
+		/**
 		 * Customized graph for touch devices.
 		 */
 		Graph.prototype.initTouch = function()
@@ -5384,7 +6021,7 @@ if (typeof mxVertexHandler != 'undefined')
 		{
 		    if (window.getSelection)
 		    {
-		        sel = window.getSelection();
+		        var sel = window.getSelection();
 		        
 		        if (sel.getRangeAt && sel.rangeCount)
 		        {
@@ -5883,6 +6520,11 @@ if (typeof mxVertexHandler != 'undefined')
 			mxCellEditorStopEditing.apply(this, arguments);
 			
 			// Tries to move focus back to container after editing if possible
+			this.focusContainer();
+		};
+		
+		mxCellEditor.prototype.focusContainer = function()
+		{
 			try
 			{
 				this.graph.container.focus();
@@ -5903,12 +6545,12 @@ if (typeof mxVertexHandler != 'undefined')
 			{
 				mxCellEditorApplyValue.apply(this, arguments);
 				
-				if (this.graph.isCellDeletable(state.cell))
+				if (this.graph.isCellDeletable(state.cell) && this.graph.model.getChildCount(state.cell) == 0)
 				{
 					var stroke = mxUtils.getValue(state.style, mxConstants.STYLE_STROKECOLOR, mxConstants.NONE);
 					var fill = mxUtils.getValue(state.style, mxConstants.STYLE_FILLCOLOR, mxConstants.NONE);
 					
-					if (mxUtils.trim(value || '') == '' && stroke == mxConstants.NONE && fill == mxConstants.NONE)
+					if (value == '' && stroke == mxConstants.NONE && fill == mxConstants.NONE)
 					{
 						this.graph.removeCells([state.cell], false);
 					}
@@ -6090,13 +6732,26 @@ if (typeof mxVertexHandler != 'undefined')
 				
 				this.hint.style.left = bb.x + Math.round((bb.width - this.hint.clientWidth) / 2) + 'px';
 				this.hint.style.top = (bb.y + bb.height + 12) + 'px';
+				
+				if (this.linkHint != null)
+				{
+					this.linkHint.style.display = 'none';
+				}
 			}
 		};
 	
 		/**
 		 * Updates the hint for the current operation.
 		 */
-		mxVertexHandler.prototype.removeHint = mxGraphHandler.prototype.removeHint;
+		mxVertexHandler.prototype.removeHint = function()
+		{
+			mxGraphHandler.prototype.removeHint.apply(this, arguments);
+			
+			if (this.linkHint != null)
+			{
+				this.linkHint.style.display = '';
+			}
+		};
 	
 		/**
 		 * Updates the hint for the current operation.
@@ -6156,17 +6811,23 @@ if (typeof mxVertexHandler != 'undefined')
 		/**
 		 * Defines the handles for the UI. Uses data-URIs to speed-up loading time where supported.
 		 */
-		HoverIcons.prototype.mainHandle = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAARCAYAAAA7bUf6AAAACXBIWXMAAAsTAAALEwEAmpwYAAABLUlEQVQ4y61US4rCQBBNeojiRrLSnbMOWWU3V1FPouARcgc9hyLOCSSbYZw5gRCIkM9KbevJaycS4zCOBY+iq6pf1y+xrNtiE6oEY/tVzMUXgSNoCJrUDu3qHpldutwSuIKOoEvt0m7I7DoCvNj2fb8XRdEojuN5lmVraJxhh59xFSLFF9phGL7lef6hRb63R73aHM8aAjv8JHJ47yqLlud5r0VRbHa51sPZQVuT/QU4ww4/4ljaJRubrC5SxouD6TWBQV/sEIkbs0eOIVGssSO1L5D6LQID+BHHZjdMSYpj7KZpun7/uk8CP5rNqTXLJP/OpNyTMWruP9CTP08nCILKdCp7gkCzJ8vPnz2BvW5PKhuLjJBykiQLaWIEjTP3o3Zjn/LtPO0rfvh/cgKu7z6wtPPltQAAAABJRU5ErkJggg==' :
-			IMAGE_PATH + '/handle-main.png', 17, 17);
-		HoverIcons.prototype.fixedHandle = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAARCAYAAAA7bUf6AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6NkE1NkU4Njk2QjI1MTFFNEFDMjFGQTcyODkzNTc3NkYiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6NkE1NkU4NkE2QjI1MTFFNEFDMjFGQTcyODkzNTc3NkYiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo2QTU2RTg2NzZCMjUxMUU0QUMyMUZBNzI4OTM1Nzc2RiIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDo2QTU2RTg2ODZCMjUxMUU0QUMyMUZBNzI4OTM1Nzc2RiIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Pmuk6K8AAAGBSURBVHjarFRBSsNQEM3/atNs6qLowixcKELoqjuXoqfQeoF6BMEj9BCC1YIXcCGlV8hGLNZlBKWlCk1JSs13Xvw/nca6UDrwmMzMy8tk/iTCWmwi52Eq53+QeWwg2bXSSNi1WiRibgRWCTahwEQmhJgw1WJGML2BC6wQnEqlsuH7fr3f7zdHo9EdPGLkUdc8mX8TJNYIpUajsR+G4YMie3pNVKebpB6GPOrgab7kr5F24Hne9ng87r6HStUuP5V1Mc2AGHnUwWMdCck6sVut1onjOHtnt4nV7M0fAuI65VEnXk3PTFq5Eyi4rnvUe1PW9fO3QOdUzvkbyqNOvEM2dMEHK2zbLr98zJ5+cJWkAvDGUC8Wi2X28Gww6bnHcTzYWp+JGAHTCQz1KIoGfFckCyZBELR3N4V1vCOyTrhHHnXw9N5kQn8+nWq1Onc6C/cERLMn7cfZniD/257wbjDxEjqiDT0fDof3tLE+PGK9HyXNy7pYyrez9K/43/+TLwEGAMb7AY6w980DAAAAAElFTkSuQmCC' :
-			IMAGE_PATH + '/handle-fixed.png', 17, 17);
-		HoverIcons.prototype.terminalHandle = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAARCAYAAAA7bUf6AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MEMzRUVERTk2NzU1MTFFNTg5NjNEMjREQ0FFNENFQzgiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MEMzRUVERUE2NzU1MTFFNTg5NjNEMjREQ0FFNENFQzgiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDowQzNFRURFNzY3NTUxMUU1ODk2M0QyNERDQUU0Q0VDOCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDowQzNFRURFODY3NTUxMUU1ODk2M0QyNERDQUU0Q0VDOCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Poj8AGUAAAF6SURBVHjarFTBSsNAEM2u2jSXeCh6sAcPilB6ys2j6Fdo/YH6CYKf0I8QrBb8AQ9S+gu5iMV6jKC0VCEJTalZ54VNnMR4ULrwmJ2Zt5PZmdkIo3yJgsRSBfmDzPUUku2VRsz2qixIehBYJZiECgsyJ0SEhQ6WBkwO8AArBKvZbG64rtsej8dd3/fvIKHDDr/myeJNYFgj2J1OZz8IggdF6+k1VoNhnEgs2OEHT/Mlv0aSQaPR2A7DcPgeKNW6/FTGxSIDdNjhB49lJCTLxOz1eieWZe2d3cZGd5RvAvQ22eEnXkvXTBqFDlTq9frR6E0Z18+qtO83ZIefeIes6IIXVpimWXv5yB8cnMqcDn+1Wq2xj2eFSfoeRdFkaz0f5OAqzunwz2azCZ8VyZS553n93U1hHO+I0uvADj94em6yQH/ujuM4ue6UzgmI6Zz0H7/nBPbf5oRng4rbyIgm9Hw6nd7TxLqQ0PV82JqXZbGUt7P0V/zv/8mXAAMASSz1f9Cd7ycAAAAASUVORK5CYII=' :
-			IMAGE_PATH + '/handle-terminal.png', 17, 17);
-		HoverIcons.prototype.secondaryHandle = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAARCAYAAAA7bUf6AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNSBNYWNpbnRvc2giIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MEJBMUVERjNEMkZDMTFFM0I0Qzc5RkE1RTc2NjI0OUIiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MEJBMUVERjREMkZDMTFFM0I0Qzc5RkE1RTc2NjI0OUIiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDowQkExRURGMUQyRkMxMUUzQjRDNzlGQTVFNzY2MjQ5QiIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDowQkExRURGMkQyRkMxMUUzQjRDNzlGQTVFNzY2MjQ5QiIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PvXDOj4AAAFqSURBVHjarFTNToNAEN5FLeiBmDRe7MGLF4IXbp71KapP4CPoO/QdvKiv4ME0PkAvJI2J0SueIHgAAk3b7XxkwSlgE38mmSwz8+3HsPMtUnSbbKww1VhbYB5XbrBnpX3JnlUXSbURvk1ukvcYyYy8IJ9rsoqw3MAJtsh3Xdc98H3/KgzDuyRJHrEiRh51jTOaX4LEDrk9Go1O0zR9UWTL9E0to+dyhSGPOnAab/DPKDtwHOcoy7LXz1SpxeRSzW9F7YiRRx041pGsSMC6Ty1f442LycUawRfRsOyIcDfA632ST6A3GAzOVfYu1PS+c+5q+iBQJ9wZO3TJD1aaptkX+YfYaFS3LKvPXl4fTDn3oigiYR1uJqF6nucR14rBglkQBGO5dyzkybBbxpRHHTitm5rox9PxPK81nZZOAKx1Eo5rnSD/nU54NzhxGx1hjHEcP5FifayItT5sjVvTyJ/vzr/f4l//T1YCDAC4VAdLL1OIRAAAAABJRU5ErkJggg==' :
-			IMAGE_PATH + '/handle-secondary.png', 17, 17);
+		// TODO: Increase handle padding
+		HoverIcons.prototype.mainHandle = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/handle-main.png', 17, 17) :
+			Graph.createSvgImage(18, 18, '<circle cx="9" cy="9" r="5" stroke="#fff" fill="#007dfc" stroke-width="1"/>');
+		HoverIcons.prototype.secondaryHandle = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/handle-secondary.png', 17, 17) :
+			Graph.createSvgImage(16, 16, '<path d="m 8 3 L 13 8 L 8 13 L 3 8 z" stroke="#fff" fill="#fca000"/>');
+		HoverIcons.prototype.fixedHandle = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/handle-fixed.png', 17, 17) :
+			Graph.createSvgImage(18, 18, '<circle cx="9" cy="9" r="5" stroke="#fff" fill="#007dfc" stroke-width="1"/><path d="m 7 7 L 11 11 M 7 11 L 11 7" stroke="#fff"/>');
+		HoverIcons.prototype.terminalHandle = (!mxClient.IS_SVG) ? new mxImage(IMAGE_PATH + '/handle-terminal.png', 17, 17) :
+			Graph.createSvgImage(18, 18, '<circle cx="9" cy="9" r="5" stroke="#fff" fill="#007dfc" stroke-width="1"/><circle cx="9" cy="9" r="2" stroke="#fff" fill="#007dfc"/>');
 		HoverIcons.prototype.rotationHandle = new mxImage((mxClient.IS_SVG) ? 'data:image/png;base64,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' :
 			IMAGE_PATH + '/handle-rotate.png', 19, 21);
-
+		
+		if (mxClient.IS_SVG)
+		{
+			mxConstraintHandler.prototype.pointImage = Graph.createSvgImage(5, 5, '<path d="m 0 0 L 5 5 M 0 5 L 5 0" stroke="#007dfc"/>');
+		}
+		
 		mxVertexHandler.prototype.handleImage = HoverIcons.prototype.mainHandle;
 		mxVertexHandler.prototype.secondaryHandleImage = HoverIcons.prototype.secondaryHandle;
 		mxEdgeHandler.prototype.handleImage = HoverIcons.prototype.mainHandle;
@@ -6324,6 +6985,19 @@ if (typeof mxVertexHandler != 'undefined')
 				{
 					dx = this.graph.snap(dx);
 					dy = this.graph.snap(dy);
+					
+					if (!this.graph.isGridEnabled())
+					{
+						if (Math.abs(dx) < this.graph.tolerance)
+						{
+							dx = 0;
+						}
+						
+						if (Math.abs(dy) < this.graph.tolerance)
+						{
+							dy = 0;
+						}
+					}
 				}
 			}
 			
@@ -6711,7 +7385,8 @@ if (typeof mxVertexHandler != 'undefined')
 			
 			this.changeHandler = mxUtils.bind(this, function(sender, evt)
 			{
-				this.updateLinkHint(this.graph.getLinkForCell(this.state.cell));
+				this.updateLinkHint(this.graph.getLinkForCell(this.state.cell),
+					this.graph.getLinksForState(this.state));
 				update();
 			});
 			
@@ -6726,9 +7401,10 @@ if (typeof mxVertexHandler != 'undefined')
 			this.graph.addListener(mxEvent.EDITING_STOPPED, this.editingHandler);
 
 			var link = this.graph.getLinkForCell(this.state.cell);
-			this.updateLinkHint(link);
+			var links = this.graph.getLinksForState(this.state);
+			this.updateLinkHint(link, links);
 			
-			if (link != null)
+			if (link != null || (links != null && links.length > 0))
 			{
 				redraw = true;
 			}
@@ -6739,9 +7415,10 @@ if (typeof mxVertexHandler != 'undefined')
 			}
 		};
 	
-		mxVertexHandler.prototype.updateLinkHint = function(link)
+		mxVertexHandler.prototype.updateLinkHint = function(link, links)
 		{
-			if (link == null || this.graph.getSelectionCount() > 1)
+			if ((link == null && (links == null || links.length == 0)) ||
+				this.graph.getSelectionCount() > 1)
 			{
 				if (this.linkHint != null)
 				{
@@ -6749,62 +7426,58 @@ if (typeof mxVertexHandler != 'undefined')
 					this.linkHint = null;
 				}
 			}
-			else if (link != null)
+			else if (link != null || (links != null && links.length > 0))
 			{
 				if (this.linkHint == null)
 				{
 					this.linkHint = createHint();
-					this.linkHint.style.padding = '4px 10px 6px 10px';
+					this.linkHint.style.padding = '6px 8px 6px 8px';
 					this.linkHint.style.fontSize = '90%';
 					this.linkHint.style.opacity = '1';
 					this.linkHint.style.filter = '';
-					this.updateLinkHint(link);
 					
 					this.graph.container.appendChild(this.linkHint);
 				}
-				
-				var label = link;
-				var max = 60;
-				var head = 36;
-				var tail = 20;
-				
-				if (label.length > max)
-				{
-					label = label.substring(0, head) + '...' + label.substring(label.length - tail);
-				}
-				
-				var a = document.createElement('a');
-				a.setAttribute('href', this.graph.getAbsoluteUrl(link));
-				a.setAttribute('title', link);
-				
-				if (this.graph.linkTarget != null)
-				{
-					a.setAttribute('target', this.graph.linkTarget);
-				}
-				
-				mxUtils.write(a, label);
-				
+
 				this.linkHint.innerHTML = '';
-				this.linkHint.appendChild(a);
-	
-				if (this.graph.isEnabled() && typeof this.graph.editLink === 'function')
+				
+				if (link != null)
 				{
-					var changeLink = document.createElement('img');
-					changeLink.setAttribute('src', IMAGE_PATH + '/edit.gif');
-					changeLink.setAttribute('title', mxResources.get('editLink'));
-					changeLink.setAttribute('width', '11');
-					changeLink.setAttribute('height', '11');
-					changeLink.style.marginLeft = '10px';
-					changeLink.style.marginBottom = '-1px';
-					changeLink.style.cursor = 'pointer';
-					this.linkHint.appendChild(changeLink);
+					this.linkHint.appendChild(this.graph.createLinkForHint(link));
 					
-					mxEvent.addListener(changeLink, 'click', mxUtils.bind(this, function(evt)
+					if (this.graph.isEnabled() && typeof this.graph.editLink === 'function')
 					{
-						this.graph.setSelectionCell(this.state.cell);
-						this.graph.editLink();
-						mxEvent.consume(evt);
-					}));
+						var changeLink = document.createElement('img');
+						changeLink.setAttribute('src', IMAGE_PATH + '/edit.gif');
+						changeLink.setAttribute('title', mxResources.get('editLink'));
+						changeLink.setAttribute('width', '11');
+						changeLink.setAttribute('height', '11');
+						changeLink.style.marginLeft = '10px';
+						changeLink.style.marginBottom = '-1px';
+						changeLink.style.cursor = 'pointer';
+						this.linkHint.appendChild(changeLink);
+						
+						mxEvent.addListener(changeLink, 'click', mxUtils.bind(this, function(evt)
+						{
+							this.graph.setSelectionCell(this.state.cell);
+							this.graph.editLink();
+							mxEvent.consume(evt);
+						}));
+					}
+				}
+
+				if (links != null)
+				{
+					for (var i = 0; i < links.length; i++)
+					{
+						var div = document.createElement('div');
+						div.style.marginTop = (link != null || i > 0) ? '6px' : '0px';
+						div.appendChild(this.graph.createLinkForHint(
+								links[i].getAttribute('href'),
+								mxUtils.getTextContent(links[i])));
+						
+						this.linkHint.appendChild(div);
+					}
 				}
 			}
 		};
@@ -6844,7 +7517,8 @@ if (typeof mxVertexHandler != 'undefined')
 			
 			this.changeHandler = mxUtils.bind(this, function(sender, evt)
 			{
-				this.updateLinkHint(this.graph.getLinkForCell(this.state.cell));
+				this.updateLinkHint(this.graph.getLinkForCell(this.state.cell),
+					this.graph.getLinksForState(this.state));
 				update();
 				this.redrawHandles();
 			});
@@ -6852,10 +7526,11 @@ if (typeof mxVertexHandler != 'undefined')
 			this.graph.getModel().addListener(mxEvent.CHANGE, this.changeHandler);
 	
 			var link = this.graph.getLinkForCell(this.state.cell);
+			var links = this.graph.getLinksForState(this.state);
 									
-			if (link != null)
+			if (link != null || (links != null && links.length > 0))
 			{
-				this.updateLinkHint(link);
+				this.updateLinkHint(link, links);
 				this.redrawHandles();
 			}
 		};
@@ -6883,16 +7558,25 @@ if (typeof mxVertexHandler != 'undefined')
 				var c = new mxPoint(this.state.getCenterX(), this.state.getCenterY());
 				var tmp = new mxRectangle(this.state.x, this.state.y - 22, this.state.width + 24, this.state.height + 22);
 				var bb = mxUtils.getBoundingBox(tmp, this.state.style[mxConstants.STYLE_ROTATION] || '0', c);
-				var rs = (bb != null) ? mxUtils.getBoundingBox(this.state, this.state.style[mxConstants.STYLE_ROTATION] || '0') : this.state;
+				var rs = (bb != null) ? mxUtils.getBoundingBox(this.state,
+					this.state.style[mxConstants.STYLE_ROTATION] || '0') : this.state;
+				var tb = (this.state.text != null) ? this.state.text.boundingBox : null;
 				
 				if (bb == null)
 				{
 					bb = this.state;
 				}
 				
-				this.linkHint.style.left = Math.round(rs.x + (rs.width - this.linkHint.clientWidth) / 2) + 'px';
-				this.linkHint.style.top = Math.round(bb.y + bb.height + this.verticalOffset / 2 +
-						6 + this.state.view.graph.tolerance) + 'px';
+				var b = bb.y + bb.height;
+				
+				if (tb != null)
+				{
+					b = Math.max(b, tb.y + tb.height);
+				}
+				
+				this.linkHint.style.left = Math.max(0, Math.round(rs.x + (rs.width - this.linkHint.clientWidth) / 2)) + 'px';
+				this.linkHint.style.top = Math.round(b + this.verticalOffset / 2 + 6 +
+					this.state.view.graph.tolerance) + 'px';
 			}
 		};
 
@@ -6958,7 +7642,7 @@ if (typeof mxVertexHandler != 'undefined')
 						b.add(this.state.text.bounds);
 					}
 					
-					this.linkHint.style.left = Math.round(b.x + (b.width - this.linkHint.clientWidth) / 2) + 'px';
+					this.linkHint.style.left = Math.max(0, Math.round(b.x + (b.width - this.linkHint.clientWidth) / 2)) + 'px';
 					this.linkHint.style.top = Math.round(b.y + b.height + 6 + this.state.view.graph.tolerance) + 'px';
 				}
 			}
